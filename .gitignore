@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments (workspace-level)
+venv/
+.venv/
+env/
+
+# Environment files
+.env
+.env.*
+
+# Frontend artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

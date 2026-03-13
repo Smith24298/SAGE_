@@ -1,0 +1,67 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Environment variables (VERY important)
+.env
+.env.*
+
+# Logs
+*.log
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Python test / coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Migrations (optional depending on framework)
+# migrations/
+
+# SQLite database
+*.sqlite3
+*.db
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+*.seed
+
+# mypy
+.mypy_cache/
+
+# Ruff / lint cache
+.ruff_cache/
+
+# Pyre
+.pyre/
+
+# Temporary files
+*.tmp
+*.temp

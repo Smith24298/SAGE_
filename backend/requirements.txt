@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pymongo
+langchain
+langgraph
+python-dotenv
+pinecone
+groq
+pydantic
+langchain-groq
+python-multipart
+certifi
