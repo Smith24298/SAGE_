@@ -1,7 +1,7 @@
 import { Card } from '../components/ui/card';
 import { 
-  LineChart, 
-  Line, 
+  AreaChart,
+  Area,
   BarChart, 
   Bar, 
   PieChart, 
@@ -12,10 +12,22 @@ import {
   CartesianGrid, 
   Tooltip, 
   Legend, 
-  ResponsiveContainer 
+  ResponsiveContainer
 } from 'recharts';
 import { TrendingUp, TrendingDown, AlertCircle, Users, Heart, Zap } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useInView } from 'motion/react';
+import { useRef, useEffect, useState } from 'react';
+
+/** Triggers Recharts' built-in bar rise animation when it scrolls into view */
+function useScrollAnimationKey() {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: '-60px' });
+  const [animKey, setAnimKey] = useState(0);
+  useEffect(() => {
+    if (isInView) setAnimKey(k => k + 1);
+  }, [isInView]);
+  return { ref, animKey };
+}
 
 const sentimentData = [
   { month: 'Oct', score: 72 },
@@ -50,6 +62,66 @@ const topConcerns = [
   { concern: 'Team Collaboration', count: 12, trend: 'neutral' },
 ];
 
+const scrollVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0 },
+};
+
+function DeptStressBarChart() {
+  const { ref, animKey } = useScrollAnimationKey();
+  return (
+    <motion.div
+      ref={ref}
+      variants={scrollVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.5, delay: 0.1 }}
+    >
+      <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
+        <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Department Stress & Engagement</h3>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart key={animKey} data={departmentData}>
+            <defs>
+              <linearGradient id="stressGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f4a261" stopOpacity={1} />
+                <stop offset="100%" stopColor="#f4a261" stopOpacity={0.6} />
+              </linearGradient>
+              <linearGradient id="engagementGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6b9080" stopOpacity={1} />
+                <stop offset="100%" stopColor="#6b9080" stopOpacity={0.6} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+            <XAxis dataKey="department" stroke="#414240" />
+            <YAxis stroke="#414240" />
+            <Tooltip cursor={false} />
+            <Legend />
+            <Bar
+              dataKey="stress"
+              fill="url(#stressGradient)"
+              radius={[8, 8, 0, 0]}
+              isAnimationActive={true}
+              animationBegin={0}
+              animationDuration={900}
+              animationEasing="ease-out"
+            />
+            <Bar
+              dataKey="engagement"
+              fill="url(#engagementGradient)"
+              radius={[8, 8, 0, 0]}
+              isAnimationActive={true}
+              animationBegin={150}
+              animationDuration={900}
+              animationEasing="ease-out"
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+    </motion.div>
+  );
+}
+
 export function Dashboard() {
   return (
     <div className="space-y-6">
@@ -67,6 +139,7 @@ export function Dashboard() {
           trend="up"
           icon={Heart}
           color="text-primary"
+          delay={0}
         />
         <MetricCard
           title="Sentiment Score"
@@ -75,6 +148,7 @@ export function Dashboard() {
           trend="down"
           icon={TrendingUp}
           color="text-chart-2"
+          delay={0.05}
         />
         <MetricCard
           title="Attrition Risk"
@@ -83,6 +157,7 @@ export function Dashboard() {
           trend="up"
           icon={AlertCircle}
           color="text-destructive"
+          delay={0.1}
         />
         <MetricCard
           title="Active Employees"
@@ -91,6 +166,7 @@ export function Dashboard() {
           trend="up"
           icon={Users}
           color="text-chart-4"
+          delay={0.15}
         />
       </div>
 
@@ -98,35 +174,46 @@ export function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sentiment Trend */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          variants={scrollVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.5, delay: 0.1 }}
         >
           <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
             <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Organization Sentiment Trend</h3>
             <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={sentimentData}>
+              <AreaChart data={sentimentData}>
+                <defs>
+                  <linearGradient id="sentimentGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e1634a" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#e1634a" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                 <XAxis dataKey="month" stroke="#414240" />
                 <YAxis stroke="#414240" />
                 <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="score" 
-                  stroke="#e1634a" 
+                <Area
+                  type="monotone"
+                  dataKey="score"
+                  stroke="#e1634a"
                   strokeWidth={3}
+                  fill="url(#sentimentGradient)"
                   dot={{ fill: '#e1634a', r: 5 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </Card>
         </motion.div>
 
         {/* Engagement Distribution */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          variants={scrollVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.5, delay: 0.2 }}
         >
           <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
             <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Employee Engagement Distribution</h3>
@@ -154,38 +241,29 @@ export function Dashboard() {
         </motion.div>
 
         {/* Department Stress Levels */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
-            <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Department Stress & Engagement</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={departmentData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                <XAxis dataKey="department" stroke="#414240" />
-                <YAxis stroke="#414240" />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="stress" fill="#f4a261" radius={[8, 8, 0, 0]} />
-                <Bar dataKey="engagement" fill="#6b9080" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </motion.div>
+        <DeptStressBarChart />
 
         {/* Top Concerns */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          variants={scrollVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.5, delay: 0.2 }}
         >
           <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
             <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Top Employee Concerns</h3>
             <div className="space-y-4">
               {topConcerns.map((item, index) => (
-                <div key={index} className="flex items-center justify-between">
+                <motion.div
+                  key={index}
+                  className="flex items-center justify-between"
+                  variants={scrollVariants}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: index * 0.1 }}
+                >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm">{item.concern}</span>
@@ -193,14 +271,17 @@ export function Dashboard() {
                       {item.trend === 'down' && <TrendingDown className="w-4 h-4 text-chart-2" />}
                     </div>
                     <div className="mt-1 h-2 bg-accent rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all duration-500"
-                        style={{ width: `${(item.count / 25) * 100}%` }}
+                      <motion.div
+                        className="h-full bg-primary rounded-full"
+                        initial={{ width: 0 }}
+                        whileInView={{ width: `${(item.count / 25) * 100}%` }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.8, delay: index * 0.1 + 0.3, ease: 'easeOut' }}
                       />
                     </div>
                   </div>
                   <span className="ml-4 text-sm text-muted-foreground">{item.count}</span>
-                </div>
+                </motion.div>
               ))}
             </div>
           </Card>
@@ -209,9 +290,11 @@ export function Dashboard() {
 
       {/* AI Insights */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5 }}
       >
         <Card className="p-6 shadow-md bg-gradient-to-br from-card to-accent">
           <div className="flex items-start gap-4">
@@ -241,13 +324,18 @@ interface MetricCardProps {
   trend: 'up' | 'down' | 'neutral';
   icon: any;
   color: string;
+  delay: number;
 }
 
-function MetricCard({ title, value, change, trend, icon: Icon, color }: MetricCardProps) {
+function MetricCard({ title, value, change, trend, icon: Icon, color, delay }: MetricCardProps) {
   return (
     <motion.div
+      variants={scrollVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true }}
+      transition={{ duration: 0.4, delay }}
       whileHover={{ y: -4 }}
-      transition={{ duration: 0.2 }}
     >
       <Card className="p-5 shadow-md hover:shadow-lg transition-shadow duration-300">
         <div className="flex items-center justify-between">
@@ -270,3 +358,4 @@ function MetricCard({ title, value, change, trend, icon: Icon, color }: MetricCa
     </motion.div>
   );
 }
+

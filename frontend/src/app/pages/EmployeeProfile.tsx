@@ -1,15 +1,12 @@
 import { Card } from '../components/ui/card';
 import { 
-  LineChart, 
-  Line, 
+  AreaChart,
+  Area,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  RadialBarChart,
-  RadialBar,
-  Legend
 } from 'recharts';
 import { 
   User, 
@@ -25,7 +22,8 @@ import {
   Briefcase
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { motion } from 'motion/react';
+import { motion, useInView, animate } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
 
 const salaryHistory = [
   { year: '2022', salary: 75000 },
@@ -59,6 +57,71 @@ const meetings = [
   { date: 'November 2025', topic: 'Team restructuring', sentiment: 'Concerned', color: 'bg-orange-500' },
 ];
 
+const scrollVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0 },
+};
+
+/** Animates a numeric count from 0 to target when it enters viewport */
+function AnimatedCounter({ target, duration = 1.2 }: { target: number; duration?: number }) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const isInView = useInView(ref, { once: true });
+
+  useEffect(() => {
+    if (!isInView) return;
+    const controls = animate(0, target, {
+      duration,
+      ease: 'easeOut',
+      onUpdate: (v) => setCount(Math.round(v)),
+    });
+    return () => controls.stop();
+  }, [isInView, target, duration]);
+
+  return <span ref={ref}>{count}</span>;
+}
+
+/** Animated circular progress that draws on scroll enter */
+function CircularProgress({ score, fill, metric }: { score: number; fill: string; metric: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true });
+  const circumference = 2 * Math.PI * 40; // r=40
+  const targetDash = (score / 100) * circumference;
+
+  return (
+    <div ref={ref} className="text-center">
+      <div className="relative w-24 h-24 mx-auto mb-2">
+        <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 96 96">
+          {/* Track */}
+          <circle cx="48" cy="48" r="40" stroke="#e9eae2" strokeWidth="8" fill="none" />
+          {/* Animated fill */}
+          <motion.circle
+            cx="48"
+            cy="48"
+            r="40"
+            stroke={fill}
+            strokeWidth="8"
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            initial={{ strokeDashoffset: circumference }}
+            animate={isInView ? { strokeDashoffset: circumference - targetDash } : {}}
+            transition={{ duration: 1.2, ease: 'easeOut' }}
+          />
+        </svg>
+        {/* Number counting in center */}
+        <div
+          className="absolute inset-0 flex items-center justify-center text-lg"
+          style={{ fontWeight: 600 }}
+        >
+          {isInView ? <AnimatedCounter target={score} /> : 0}%
+        </div>
+      </div>
+      <div className="text-sm">{metric}</div>
+    </div>
+  );
+}
+
 export function EmployeeProfile() {
   return (
     <div className="space-y-6 max-w-7xl">
@@ -75,8 +138,11 @@ export function EmployeeProfile() {
 
       {/* Employee Overview */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-start gap-6">
@@ -99,9 +165,11 @@ export function EmployeeProfile() {
 
       {/* Compensation Section */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-center gap-2 mb-6">
@@ -119,19 +187,26 @@ export function EmployeeProfile() {
           <div className="mt-4">
             <h3 className="text-sm text-muted-foreground mb-4">Salary History</h3>
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={salaryHistory}>
+              <AreaChart data={salaryHistory}>
+                <defs>
+                  <linearGradient id="salaryGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e1634a" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#e1634a" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                 <XAxis dataKey="year" stroke="#414240" />
                 <YAxis stroke="#414240" />
                 <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="salary" 
-                  stroke="#e1634a" 
+                <Area
+                  type="monotone"
+                  dataKey="salary"
+                  stroke="#e1634a"
                   strokeWidth={3}
+                  fill="url(#salaryGrad)"
                   dot={{ fill: '#e1634a', r: 5 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
@@ -139,9 +214,11 @@ export function EmployeeProfile() {
 
       {/* Documents */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-center gap-2 mb-4">
@@ -160,9 +237,11 @@ export function EmployeeProfile() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Personality Profile */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          variants={scrollVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.5, delay: 0.1 }}
         >
           <Card className="p-6 shadow-md h-full">
             <h2 className="text-xl mb-4" style={{ fontWeight: 600 }}>Behavioral Intelligence</h2>
@@ -198,9 +277,11 @@ export function EmployeeProfile() {
 
         {/* Sentiment Analytics */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          variants={scrollVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.5, delay: 0.2 }}
         >
           <Card className="p-6 shadow-md h-full">
             <h2 className="text-xl mb-4" style={{ fontWeight: 600 }}>Sentiment Analytics</h2>
@@ -215,29 +296,38 @@ export function EmployeeProfile() {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={150}>
-              <LineChart data={sentimentTrend}>
+              <AreaChart data={sentimentTrend}>
+                <defs>
+                  <linearGradient id="sentimentProfileGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e1634a" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#e1634a" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                 <XAxis dataKey="month" stroke="#414240" />
                 <YAxis stroke="#414240" />
                 <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="score" 
-                  stroke="#e1634a" 
+                <Area
+                  type="monotone"
+                  dataKey="score"
+                  stroke="#e1634a"
                   strokeWidth={2}
+                  fill="url(#sentimentProfileGrad)"
                   dot={{ fill: '#e1634a', r: 4 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </Card>
         </motion.div>
       </div>
 
-      {/* Engagement Metrics */}
+      {/* Engagement Metrics — Animated Circular Progress */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-center gap-2 mb-6">
@@ -246,34 +336,12 @@ export function EmployeeProfile() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {engagementMetrics.map((item, index) => (
-              <div key={index} className="text-center">
-                <div className="relative w-24 h-24 mx-auto mb-2">
-                  <svg className="w-24 h-24 transform -rotate-90">
-                    <circle
-                      cx="48"
-                      cy="48"
-                      r="40"
-                      stroke="#e9eae2"
-                      strokeWidth="8"
-                      fill="none"
-                    />
-                    <circle
-                      cx="48"
-                      cy="48"
-                      r="40"
-                      stroke={item.fill}
-                      strokeWidth="8"
-                      fill="none"
-                      strokeDasharray={`${(item.score / 100) * 251.2} 251.2`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center text-xl" style={{ fontWeight: 600 }}>
-                    {item.score}%
-                  </div>
-                </div>
-                <div className="text-sm">{item.metric}</div>
-              </div>
+              <CircularProgress
+                key={index}
+                score={item.score}
+                fill={item.fill}
+                metric={item.metric}
+              />
             ))}
           </div>
         </Card>
@@ -281,9 +349,11 @@ export function EmployeeProfile() {
 
       {/* Communication Insights */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-center gap-2 mb-4">
@@ -329,9 +399,11 @@ export function EmployeeProfile() {
 
       {/* Meeting Timeline */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.7 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-center gap-2 mb-4">
@@ -357,9 +429,11 @@ export function EmployeeProfile() {
 
       {/* Risk Indicators */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-center gap-2 mb-4">
@@ -377,9 +451,11 @@ export function EmployeeProfile() {
 
       {/* AI Insights */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.9 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md bg-gradient-to-br from-primary/5 to-accent">
           <h2 className="text-xl mb-4" style={{ fontWeight: 600 }}>AI-Generated Insights</h2>
@@ -406,9 +482,11 @@ export function EmployeeProfile() {
 
       {/* Conversation Preparation */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.0 }}
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="p-6 shadow-md border-2 border-primary/20">
           <div className="flex items-center gap-2 mb-4">

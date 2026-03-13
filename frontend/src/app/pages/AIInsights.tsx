@@ -49,6 +49,11 @@ const insights = [
   },
 ];
 
+const scrollVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0 },
+};
+
 export function AIInsights() {
   return (
     <div className="space-y-6">
@@ -57,21 +62,29 @@ export function AIInsights() {
         <p className="text-muted-foreground mt-1">Data-driven recommendations powered by SAGE</p>
       </div>
 
-      <Card className="p-6 shadow-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-6 h-6" />
+      <motion.div
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+      >
+        <Card className="p-6 shadow-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl mb-2" style={{ fontWeight: 600 }}>Today's Priority Actions</h2>
+              <ul className="space-y-2 text-sm opacity-95">
+                <li>• <strong>Urgent:</strong> Schedule conversation with Sarah Johnson regarding workload concerns</li>
+                <li>• <strong>This Week:</strong> Review Engineering team capacity and resource allocation</li>
+                <li>• <strong>This Month:</strong> Launch career development framework for 68% seeking growth opportunities</li>
+              </ul>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl mb-2" style={{ fontWeight: 600 }}>Today's Priority Actions</h2>
-            <ul className="space-y-2 text-sm opacity-95">
-              <li>• <strong>Urgent:</strong> Schedule conversation with Sarah Johnson regarding workload concerns</li>
-              <li>• <strong>This Week:</strong> Review Engineering team capacity and resource allocation</li>
-              <li>• <strong>This Month:</strong> Launch career development framework for 68% seeking growth opportunities</li>
-            </ul>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </motion.div>
 
       <div className="space-y-6">
         {insights.map((section, index) => {
@@ -79,9 +92,11 @@ export function AIInsights() {
           return (
             <motion.div
               key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              variants={scrollVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.5, delay: index * 0.08 }}
             >
               <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
                 <div className="flex items-center gap-3 mb-4">
@@ -104,23 +119,31 @@ export function AIInsights() {
         })}
       </div>
 
-      <Card className="p-6 shadow-md border-2 border-primary/20">
-        <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Predictive Analytics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-accent rounded-lg text-center">
-            <div className="text-2xl text-destructive mb-1" style={{ fontWeight: 600 }}>8.5%</div>
-            <div className="text-sm text-muted-foreground">Predicted Turnover (Next Quarter)</div>
+      <motion.div
+        variants={scrollVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.5 }}
+      >
+        <Card className="p-6 shadow-md border-2 border-primary/20">
+          <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Predictive Analytics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-accent rounded-lg text-center">
+              <div className="text-2xl text-destructive mb-1" style={{ fontWeight: 600 }}>8.5%</div>
+              <div className="text-sm text-muted-foreground">Predicted Turnover (Next Quarter)</div>
+            </div>
+            <div className="p-4 bg-accent rounded-lg text-center">
+              <div className="text-2xl text-chart-2 mb-1" style={{ fontWeight: 600 }}>+12</div>
+              <div className="text-sm text-muted-foreground">Recommended New Hires</div>
+            </div>
+            <div className="p-4 bg-accent rounded-lg text-center">
+              <div className="text-2xl text-primary mb-1" style={{ fontWeight: 600 }}>78%</div>
+              <div className="text-sm text-muted-foreground">Projected Engagement (Q2)</div>
+            </div>
           </div>
-          <div className="p-4 bg-accent rounded-lg text-center">
-            <div className="text-2xl text-chart-2 mb-1" style={{ fontWeight: 600 }}>+12</div>
-            <div className="text-sm text-muted-foreground">Recommended New Hires</div>
-          </div>
-          <div className="p-4 bg-accent rounded-lg text-center">
-            <div className="text-2xl text-primary mb-1" style={{ fontWeight: 600 }}>78%</div>
-            <div className="text-sm text-muted-foreground">Projected Engagement (Q2)</div>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </motion.div>
     </div>
   );
 }
