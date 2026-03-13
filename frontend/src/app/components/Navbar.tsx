@@ -1,8 +1,30 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
+import { Moon, Sun, LogOut, Shield } from 'lucide-react';
+import { useAuth, UserRole } from '@/context/AuthContext';
+
+const roleLabels: Record<UserRole, string> = {
+  chro: 'CHRO',
+  hr_partner: 'HR Partner',
+  talent_ops: 'Talent Ops',
+  engagement_manager: 'Engagement Manager',
+};
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { logout, user } = useAuth();
+
+  useEffect(() => {
+    setMounted(true);
+    // Check localStorage for saved theme
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      setIsDarkTheme(true);
+      document.documentElement.classList.add('dark-theme');
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -12,6 +34,19 @@ export function Navbar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const toggleTheme = () => {
+    const newTheme = !isDarkTheme;
+    setIsDarkTheme(newTheme);
+    
+    if (newTheme) {
+      document.documentElement.classList.add('dark-theme');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark-theme');
+      localStorage.setItem('theme', 'light');
+    }
+  };
 
   return (
     <nav
@@ -31,8 +66,55 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <FloatingParticles />
+          {mounted && (
+            <div className="flex items-center gap-3">
+              {/* Role Badge */}
+              {user && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20"
+                >
+                  <Shield className="w-3.5 h-3.5 text-primary" />
+                  <span
+                    className="text-xs font-semibold tracking-wide text-primary"
+                    style={{ letterSpacing: '0.04em' }}
+                  >
+                    {roleLabels[user.role] || user.role}
+                  </span>
+                </motion.div>
+              )}
+
+              <motion.button
+                onClick={toggleTheme}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="p-2 rounded-lg hover:bg-accent transition-colors"
+                title={isDarkTheme ? 'Switch to light theme' : 'Switch to dark theme'}
+              >
+                {isDarkTheme ? (
+                  <Sun className="w-5 h-5 text-primary" />
+                ) : (
+                  <Moon className="w-5 h-5 text-primary" />
+                )}
+              </motion.button>
+              
+              {user && (
+                <motion.button
+                  onClick={logout}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5" />
+                </motion.button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </nav>

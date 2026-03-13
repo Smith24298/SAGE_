@@ -9,7 +9,7 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <Navbar />
       <Sidebar />
-      <main className="ml-64 pt-24 p-8">{children}</main>
+      <main className="ml-72 pt-24 px-8 py-8">{children}</main>
       <ChatbotButton />
     </div>
   );
