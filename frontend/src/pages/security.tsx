@@ -1,10 +1,10 @@
 import dynamic from "next/dynamic";
 
-const Security = dynamic(
-  () => import("@/app/pages/Security").then((m) => m.Security),
+const Migrations = dynamic(
+  () => import("@/app/pages/Security").then((m) => m.Migrations),
   { ssr: false },
 );
 
 export default function Page() {
-  return <Security />;
+  return <Migrations />;
 }

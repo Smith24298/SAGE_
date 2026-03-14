@@ -8,7 +8,7 @@ const scrollVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-export function Security() {
+export function Migrations() {
   const [zohoKey, setZohoKey] = useState("zoho_live_490110_47a152e48569");
   const [showZohoKey, setShowZohoKey] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -31,7 +31,7 @@ export function Security() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl" style={{ fontWeight: 600 }}>
-          Security
+          Migrations
         </h1>
         <p className="text-muted-foreground mt-1">
           Manage your external API connections and security settings
