@@ -11,6 +11,7 @@ import {
   Video,
   FileText,
   Sparkles,
+  Calendar,
   Upload,
   Loader2,
   CheckCircle2,
@@ -32,6 +33,13 @@ const allNavItems = [
     icon: TrendingUp,
     roles: ["talent_ops"],
   },
+  { 
+    path: "/employee-insights", 
+    label: "Employee Insights", 
+    icon: Sparkles, 
+    roles: ["talent_ops"] 
+  },
+  { path: "/events", label: "Events", icon: Calendar, roles: ["engagement_manager"] },
   {
     path: "/engagement-analytics",
     label: "Engagement Analytics",

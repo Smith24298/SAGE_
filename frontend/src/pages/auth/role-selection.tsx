@@ -73,7 +73,7 @@ export default function RoleSelection() {
       const roleRoutes: Record<string, string> = {
         chro: '/dashboard',
         hr_partner: '/employees',
-        talent_ops: '/workforce-insights',
+        talent_ops: '/employee-insights',
         engagement_manager: '/engagement-analytics',
       };
       router.push(roleRoutes[selectedRole] ?? '/dashboard');

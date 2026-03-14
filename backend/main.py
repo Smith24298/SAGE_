@@ -29,8 +29,56 @@ from backend.ob_engine.intelligence_storage import (
     update_digital_twin_with_intelligence,
     get_employee_behavioral_summary
 )
+from backend.calendar_service import router as calendar_router
 
 app = FastAPI(title="AI HR Digital Twin Intelligence System")
+
+app.include_router(calendar_router)
+
+
+@app.on_event("startup")
+async def _auto_seed_firestore_on_startup():
+    """Optionally seed Firestore with employee data on startup.
+
+    Controlled by env vars:
+      - FIRESTORE_AUTO_SEED=true|false (default false)
+      - FIRESTORE_AUTO_SEED_COUNT (default 25)
+      - FIRESTORE_AUTO_SEED_JSON (default frontend/firestore-seed-employees.example.json)
+
+    Safe behavior: only seeds if `employee_profiles` is empty.
+    """
+
+    enabled = os.getenv("FIRESTORE_AUTO_SEED", "false").lower() in {"1", "true", "yes"}
+    if not enabled:
+        return
+
+    db = get_firestore_client()
+    if db is None:
+        print("[auto-seed] Firestore not configured; skipping")
+        return
+
+    try:
+        existing = db.collection("employee_profiles").limit(1).get()
+        if existing:
+            print("[auto-seed] employee_profiles not empty; skipping")
+            return
+
+        count = int(os.getenv("FIRESTORE_AUTO_SEED_COUNT", "25"))
+        seed_json = os.getenv(
+            "FIRESTORE_AUTO_SEED_JSON",
+            os.path.join("frontend", "firestore-seed-employees.example.json"),
+        )
+
+        result = seed_employees_to_firestore(
+            seed_json_path=seed_json,
+            count=count,
+            id_start=1,
+            merge=True,
+            dry_run=False,
+        )
+        print(f"[auto-seed] Seeded {result.employees_written} employees")
+    except Exception as e:
+        print(f"[auto-seed] Failed: {e}")
 
 frontend_origins = os.getenv("FRONTEND_ORIGINS", "")
 allowed_origins = [

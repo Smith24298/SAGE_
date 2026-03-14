@@ -16,7 +16,7 @@ export type UserRole = 'chro' | 'hr_partner' | 'talent_ops' | 'engagement_manage
 export const USER_ROLE_ROUTES: Record<UserRole, string> = {
   chro: '/dashboard',
   hr_partner: '/employees',
-  talent_ops: '/workforce-insights',
+  talent_ops: '/employee-insights',
   engagement_manager: '/engagement-analytics',
 };
 
