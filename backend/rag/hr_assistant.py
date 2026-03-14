@@ -60,6 +60,24 @@ OUT_OF_SCOPE_HINTS = {
     "python code",
 }
 
+MEETING_SIGNAL_TERMS = {
+    "deadline",
+    "stress",
+    "burnout",
+    "workload",
+    "feedback",
+    "career",
+    "manager",
+    "team",
+    "promotion",
+    "attrition",
+    "retention",
+    "conflict",
+    "support",
+    "motivation",
+    "engagement",
+}
+
 
 def _normalize_text(text: str) -> str:
     return " ".join((text or "").strip().lower().split())
@@ -171,23 +189,93 @@ def _find_relevant_twins(question: str, twins: list[dict]) -> list[dict]:
 
 
 def _build_twin_context(twins: list[dict]) -> str:
+    if not twins:
+        return "No employee digital twins found in the system."
+
+    # Keep prompt size bounded while preserving the most relevant employees.
+    source_twins = twins[:6]
     context = ""
-    for t in twins:
+
+    for t in source_twins:
         emp_name = t.get("name", "Unknown")
         context += f"\n**{emp_name}**:\n"
 
-        if "behavioral_profile" in t:
-            profile = t["behavioral_profile"]
-            context += f"  Communication: {profile.get('communication_style', 'N/A')}\n"
-            context += f"  Drivers: {', '.join(profile.get('motivation_drivers', []))}\n"
+        profile = t.get("behavioral_profile", {}) or {}
+        communication = profile.get("communication_style", "N/A")
+        drivers = profile.get("motivation_drivers", [])
+        driver_text = ", ".join(drivers) if isinstance(drivers, list) else str(drivers or "N/A")
+        feedback_pref = profile.get("feedback_preference", "N/A")
+        collaboration = profile.get("collaboration_style", "N/A")
 
-        if "engagement_profile" in t:
-            eng = t["engagement_profile"]
-            context += f"  Engagement: {eng.get('engagement_level', 0):.1f}/1.0\n"
-            context += f"  Participation: {eng.get('participation', 0):.1f}/1.0\n"
+        context += f"  Communication: {communication}\n"
+        context += f"  Motivation Drivers: {driver_text}\n"
+        context += f"  Feedback Preference: {feedback_pref}\n"
+        context += f"  Collaboration Style: {collaboration}\n"
+
+        engagement = t.get("engagement_profile", {}) or {}
+        context += f"  Engagement: {engagement.get('engagement_level', 0):.2f}/1.0\n"
+        context += f"  Participation: {engagement.get('participation', 0):.2f}/1.0\n"
+        context += f"  Responsiveness: {engagement.get('responsiveness', 0):.2f}/1.0\n"
+        context += f"  Initiative: {engagement.get('initiative', 0):.2f}/1.0\n"
 
         context += f"  Maslow Level: {t.get('maslow_level', 'N/A')}\n"
-        context += f"  Burnout Risk: {t.get('burnout_risk', 0):.1f}\n"
+        context += f"  Management Style: {t.get('management_style', 'N/A')}\n"
+        context += f"  Burnout Risk: {t.get('burnout_risk', 0):.2f}\n"
+        context += f"  Equity Concerns: {'Yes' if bool(t.get('equity_concerns')) else 'No'}\n"
+
+        career_goals = t.get("career_goals", [])
+        if isinstance(career_goals, list) and career_goals:
+            context += f"  Career Goals: {', '.join(str(x) for x in career_goals[:5])}\n"
+
+        herzberg = t.get("herzberg", {}) or {}
+        motivators = herzberg.get("motivators", [])
+        hygiene_issues = herzberg.get("hygiene_issues", [])
+        if isinstance(motivators, list) and motivators:
+            context += f"  Herzberg Motivators: {', '.join(str(x) for x in motivators[:5])}\n"
+        if isinstance(hygiene_issues, list) and hygiene_issues:
+            context += f"  Herzberg Hygiene Issues: {', '.join(str(x) for x in hygiene_issues[:5])}\n"
+
+        ml_metrics = t.get("ml_metrics", {}) or {}
+        if isinstance(ml_metrics, dict) and ml_metrics:
+            burnout_score = ml_metrics.get("burnout_score")
+            risk_label = ml_metrics.get("burnout_risk_label")
+            meetings_today = ml_metrics.get("meetings_today")
+            deadlines = ml_metrics.get("deadline_mentions")
+            if burnout_score is not None:
+                context += f"  ML Burnout Score: {burnout_score}\n"
+            if risk_label:
+                context += f"  ML Burnout Label: {risk_label}\n"
+            if meetings_today is not None:
+                context += f"  Meetings Today (est): {meetings_today}\n"
+            if deadlines is not None:
+                context += f"  Deadline Mentions: {deadlines}\n"
+
+        interaction_memory = t.get("interaction_memory", [])
+        if isinstance(interaction_memory, list) and interaction_memory:
+            context += "  Recent Meeting Notes:\n"
+            latest_entries = interaction_memory[-2:]
+            for idx, raw_note in enumerate(reversed(latest_entries)):
+                note_text = " ".join(str(raw_note or "").split())
+                if not note_text:
+                    continue
+
+                sentence_chunks = re.split(r"(?<=[.!?])\s+", note_text)
+                prioritized = [
+                    chunk.strip()
+                    for chunk in sentence_chunks
+                    if any(term in chunk.lower() for term in MEETING_SIGNAL_TERMS)
+                ]
+                selected = prioritized[:2] if prioritized else [chunk.strip() for chunk in sentence_chunks[:2] if chunk.strip()]
+
+                if not selected:
+                    selected = [note_text[:180]]
+
+                label = "Latest" if idx == 0 else "Previous"
+                compact = " | ".join(s[:180] for s in selected)
+                context += f"    - {label}: {compact}\n"
+
+    if len(twins) > len(source_twins):
+        context += f"\n(Showing {len(source_twins)} of {len(twins)} available twins for prompt-size safety.)\n"
 
     return context
 
@@ -323,7 +411,16 @@ def hr_chat(question: str, concise: bool = True):
         length_instruction = (
             "Keep your response very concise (2-3 sentences max), focused, and actionable. "
             "Use bullet points if listing multiple items."
-        ) if concise else ""
+        ) if concise else (
+            "Provide a detailed, practical answer using the available digital twin and meeting-memory evidence. "
+            "Prefer this structure:\n"
+            "1) Situation Summary\n"
+            "2) Last Meeting Highlights (what the person discussed recently)\n"
+            "3) Risk/Signal Analysis\n"
+            "4) How to Deal With This Person (communication + management approach)\n"
+            "5) Next 1:1 Agenda and Follow-up Actions.\n"
+            "Be specific and actionable; do not be generic."
+        )
         
         prompt = f"""
         You are an expert HR leadership assistant providing personalized insights.
@@ -341,6 +438,8 @@ def hr_chat(question: str, concise: bool = True):
         - If the query is ambiguous, ask one specific follow-up question.
         - Do not invent employee facts not present in data.
         - Keep output practical and decision-ready.
+        - For person-specific questions, explicitly reference relevant recent meeting notes from interaction memory when present.
+        - When recommending actions, include what to say, what to avoid, and what to monitor.
         
         Provide insights and recommendations based on the employee data above.
         Focus on behavioral intelligence and engagement patterns.

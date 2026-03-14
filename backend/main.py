@@ -222,7 +222,7 @@ async def chat(request: ChatRequest):
                 "status": "error",
                 "message": "Question cannot be empty"
             }, 400
-        routed = route_user_message(request.question, concise=True)
+        routed = route_user_message(request.question, concise=False)
         return routed
     except Exception as e:
         return {
