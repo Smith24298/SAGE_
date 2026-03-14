@@ -22,7 +22,7 @@ export function useRoleBasedNavigation() {
       return;
     }
 
-    const dashboardRoute = USER_ROLE_ROUTES[user.role] ?? '/';
+    const dashboardRoute = USER_ROLE_ROUTES[user.role] ?? '/dashboard';
 
     if (router.pathname.startsWith('/auth/')) {
       router.push(dashboardRoute);

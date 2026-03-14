@@ -67,7 +67,7 @@ export default function SignUp() {
     try {
       await signup(formData.name, formData.email, formData.password, formData.role as any);
       // Redirect is handled by _app.tsx based on user.role
-      router.push('/');
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to create account');
     }

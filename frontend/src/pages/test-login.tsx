@@ -17,7 +17,7 @@ export default function TestLogin() {
       description: 'Chief Human Resources Officer',
       icon: Crown,
       color: 'bg-purple-500',
-      route: '/',
+      route: '/dashboard',
       subtitle: 'Executive Overview'
     },
     {

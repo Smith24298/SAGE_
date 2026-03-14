@@ -14,7 +14,7 @@ import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from '@/lib/fire
 export type UserRole = 'chro' | 'hr_partner' | 'talent_ops' | 'engagement_manager';
 
 export const USER_ROLE_ROUTES: Record<UserRole, string> = {
-  chro: '/',
+  chro: '/dashboard',
   hr_partner: '/employees',
   talent_ops: '/workforce-insights',
   engagement_manager: '/engagement-analytics',

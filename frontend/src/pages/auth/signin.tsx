@@ -46,7 +46,7 @@ export default function SignIn() {
     try {
       await login(email, password);
       // Redirect is handled by _app.tsx based on user.role (or to role-selection if no role)
-      router.push('/');
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Invalid credentials');
     }
