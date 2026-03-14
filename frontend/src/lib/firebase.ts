@@ -22,7 +22,7 @@ function getFirebase() {
   if (!app) {
     if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
       throw new Error(
-        'Missing Firebase config. Set FIREBASE_CONFIG_PATH to client config JSON, or NEXT_PUBLIC_FIREBASE_* in .env'
+        'Missing Firebase config. Set NEXT_PUBLIC_FIREBASE_* environment variables.'
       );
     }
     app = initializeApp(firebaseConfig);

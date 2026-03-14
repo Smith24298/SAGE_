@@ -19,3 +19,8 @@ This app does not hardcode backend URLs. Configure them via env:
   - Set `NEXT_PUBLIC_API_URL` to your backend base URL (e.g. `https://api.example.com`)
 
 See `frontend/.env.local.example` for placeholders.
+
+## Deploying to Vercel
+
+- Configure Firebase via Vercel Environment Variables (`NEXT_PUBLIC_FIREBASE_*`).
+- Configure backend routing via `BACKEND_API_URL` (recommended same-origin proxy) or `NEXT_PUBLIC_API_URL` (direct mode).

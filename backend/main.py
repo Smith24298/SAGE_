@@ -119,10 +119,12 @@ app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).lower()
 #   set FRONTEND_ORIGINS='*' OR CORS_ALLOW_ALL=true.
 cors_allow_all = os.getenv("CORS_ALLOW_ALL", "").strip().lower() in {"1", "true", "yes"}
 frontend_origins_raw = os.getenv("FRONTEND_ORIGINS", "").strip()
+frontend_origin_regex = os.getenv("FRONTEND_ORIGIN_REGEX", "").strip() or None
 
 if cors_allow_all or frontend_origins_raw == "*":
     allowed_origins = ["*"]
     allow_credentials = False  # cannot be True with '*' per CORS spec
+    frontend_origin_regex = None
 else:
     allowed_origins = [
         origin.strip() for origin in frontend_origins_raw.split(",") if origin.strip()
@@ -148,6 +150,7 @@ app.add_middleware(
     allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=frontend_origin_regex,
 )
 
 @app.get("/health")
