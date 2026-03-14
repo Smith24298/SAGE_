@@ -11,6 +11,9 @@ env/
 .env
 .env.*
 
+# Service account credentials
+backend/firebase_admin_sdk.json
+
 # Frontend artifacts
 frontend/node_modules/
 frontend/.next/

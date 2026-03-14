@@ -3,14 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X, Send, Loader, Paperclip } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { fetchChat, getEmployeeSummary, uploadTranscript } from "@/lib/api";
-import {
-  personalizeResponse,
-  generateMeetingPrepResponse,
-  extractEmployeeName,
-  isMeetingPrepQuestion,
-  conciseFormat,
-} from "@/lib/chatUtils";
+import { fetchChat, uploadTranscript } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -25,7 +18,6 @@ export function ChatbotButton() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [employeeCache, setEmployeeCache] = useState<Record<string, any>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,66 +109,18 @@ export function ChatbotButton() {
 
     try {
       let assistantResponse = "";
-
-      // Check if this is a meeting prep question
-      if (isMeetingPrepQuestion(input)) {
-        const employeeName = extractEmployeeName(input);
-
-        if (employeeName) {
-          // Try to get employee behavioral data
-          let employeeSummary = employeeCache[employeeName.toLowerCase()];
-
-          if (!employeeSummary) {
-            try {
-              console.log(`Fetching summary for: ${employeeName}`);
-              employeeSummary = await getEmployeeSummary(employeeName);
-
-              if (employeeSummary) {
-                console.log(
-                  `Got summary for ${employeeName}:`,
-                  employeeSummary,
-                );
-                setEmployeeCache((prev) => ({
-                  ...prev,
-                  [employeeName.toLowerCase()]: employeeSummary,
-                }));
-              } else {
-                console.log(
-                  `No summary found for ${employeeName}, using generic response`,
-                );
-              }
-            } catch (error) {
-              console.error(
-                `Error fetching summary for ${employeeName}:`,
-                error,
-              );
-              // Fall through to generic response
-            }
-          }
-
-          // Generate personalized meeting prep response
-          assistantResponse = generateMeetingPrepResponse(
-            employeeName,
-            employeeSummary,
-          );
-        } else {
-          assistantResponse =
-            'Who would you like to meet with? (e.g., "prepare me for a meeting with Alice")';
-        }
-      } else {
-        // Regular chat - send to backend
-        try {
-          console.log("Sending to chat endpoint:", input);
-          assistantResponse = await fetchChat(input);
-          console.log(
-            "Chat response:",
-            assistantResponse.substring(0, 100) + "...",
-          );
-        } catch (error) {
-          console.error("Chat error:", error);
-          assistantResponse =
-            "Sorry, I encountered an error. Please try again.";
-        }
+      try {
+        // Always route through backend so MCP intent + digital twin context is applied.
+        console.log("Sending to chat endpoint:", input);
+        assistantResponse = await fetchChat(input);
+        console.log(
+          "Chat response:",
+          assistantResponse.substring(0, 100) + "...",
+        );
+      } catch (error) {
+        console.error("Chat error:", error);
+        assistantResponse =
+          "Sorry, I encountered an error. Please try again.";
       }
 
       // Add assistant message

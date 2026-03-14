@@ -32,6 +32,7 @@ pytest_cache/
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints
 sage-1e9a2-firebase-adminsdk-fbsvc-26272edeef.json
+firebase_admin_sdk.json
 
 # Migrations (optional depending on framework)
 # migrations/

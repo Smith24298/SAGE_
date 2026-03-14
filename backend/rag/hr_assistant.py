@@ -65,6 +65,155 @@ def _normalize_text(text: str) -> str:
     return " ".join((text or "").strip().lower().split())
 
 
+def _clean_candidate_name(candidate: str) -> str | None:
+    tokens = re.findall(r"[a-z']+", _normalize_text(candidate))
+    stop_words = {
+        "a",
+        "an",
+        "the",
+        "meet",
+        "meeting",
+        "details",
+        "detail",
+        "insights",
+        "insight",
+        "data",
+        "digital",
+        "twin",
+        "profile",
+        "on",
+        "for",
+        "with",
+        "about",
+        "regarding",
+    }
+    words = [word for word in tokens if word not in stop_words]
+    if not words:
+        return None
+    return " ".join(words[:3]).strip()
+
+
+def _extract_name_hint(question: str) -> str | None:
+    normalized = _normalize_text(question)
+    patterns = [
+        r"\bnot\s+[a-z][a-z'-]+\s+([a-z][a-z'\s-]{1,30})",
+        r"(?:meet(?:ing)?|talk|discussion|speak|call|1:1|one on one)\s+with\s+([a-z][a-z'\s-]{1,40})",
+        r"(?:with|about|regarding|for)\s+([a-z][a-z'\s-]{1,40})",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+        if match:
+            cleaned = _clean_candidate_name(match.group(1))
+            if cleaned:
+                return cleaned
+
+    # Last fallback: detect a likely person token in short prompts.
+    tokens = [
+        token
+        for token in re.findall(r"\b[a-z]{3,}\b", normalized)
+        if token
+        not in {
+            "prepare",
+            "meeting",
+            "meet",
+            "details",
+            "digital",
+            "twin",
+            "database",
+            "from",
+            "with",
+            "about",
+            "team",
+            "employee",
+            "employees",
+        }
+    ]
+    if tokens:
+        return tokens[-1]
+    return None
+
+
+def _is_negated(name: str, question: str) -> bool:
+    return bool(re.search(rf"\bnot\s+{re.escape(name)}\b", question))
+
+
+def _find_relevant_twins(question: str, twins: list[dict]) -> list[dict]:
+    normalized_question = _normalize_text(question)
+    scored: list[tuple[int, dict]] = []
+
+    for twin in twins:
+        name = _normalize_text(str(twin.get("name", "")))
+        if not name:
+            continue
+
+        if _is_negated(name, normalized_question):
+            continue
+
+        score = 0
+        if name in normalized_question:
+            score += 100
+
+        for token in name.split():
+            if len(token) < 3:
+                continue
+            if _is_negated(token, normalized_question):
+                score = 0
+                break
+            if re.search(rf"\b{re.escape(token)}\b", normalized_question):
+                score += 10
+
+        if score > 0:
+            scored.append((score, twin))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [item[1] for item in scored[:3]]
+
+
+def _build_twin_context(twins: list[dict]) -> str:
+    context = ""
+    for t in twins:
+        emp_name = t.get("name", "Unknown")
+        context += f"\n**{emp_name}**:\n"
+
+        if "behavioral_profile" in t:
+            profile = t["behavioral_profile"]
+            context += f"  Communication: {profile.get('communication_style', 'N/A')}\n"
+            context += f"  Drivers: {', '.join(profile.get('motivation_drivers', []))}\n"
+
+        if "engagement_profile" in t:
+            eng = t["engagement_profile"]
+            context += f"  Engagement: {eng.get('engagement_level', 0):.1f}/1.0\n"
+            context += f"  Participation: {eng.get('participation', 0):.1f}/1.0\n"
+
+        context += f"  Maslow Level: {t.get('maslow_level', 'N/A')}\n"
+        context += f"  Burnout Risk: {t.get('burnout_risk', 0):.1f}\n"
+
+    return context
+
+
+def _build_digital_twin_summary(twins: list[dict]) -> str:
+    if not twins:
+        return "No employee digital twins found in the system."
+
+    lines = ["Here is personalized data from digital twins:"]
+    for twin in twins[:5]:
+        name = str(twin.get("name", "Unknown"))
+        profile = twin.get("behavioral_profile", {}) or {}
+        engagement = twin.get("engagement_profile", {}) or {}
+        drivers = profile.get("motivation_drivers", [])
+        top_driver = drivers[0] if isinstance(drivers, list) and drivers else "N/A"
+        communication = profile.get("communication_style", "N/A")
+        engagement_level = float(engagement.get("engagement_level", 0.0) or 0.0)
+        burnout_risk = float(twin.get("burnout_risk", 0.0) or 0.0)
+        lines.append(
+            f"- {name}: engagement {engagement_level:.1f}/1.0, burnout {burnout_risk:.1f}, "
+            f"driver {top_driver}, communication {communication}."
+        )
+
+    return "\n".join(lines)
+
+
 def _detect_light_intent(question: str):
     normalized = _normalize_text(question)
     if not normalized:
@@ -126,30 +275,40 @@ def hr_chat(question: str, concise: bool = True):
         
         # Fetch employee data with behavioral intelligence
         twins = list(employees.find())
-        
+        normalized_question = _normalize_text(question)
+
         context = ""
-        
         if twins:
-            # Format employee data with behavioral insights
-            for t in twins:
-                emp_name = t.get("name", "Unknown")
-                context += f"\n**{emp_name}**:\n"
-                
-                # Add behavioral intelligence if available
-                if "behavioral_profile" in t:
-                    profile = t["behavioral_profile"]
-                    context += f"  Communication: {profile.get('communication_style', 'N/A')}\n"
-                    context += f"  Drivers: {', '.join(profile.get('motivation_drivers', []))}\n"
-                
-                # Add engagement metrics if available
-                if "engagement_profile" in t:
-                    eng = t["engagement_profile"]
-                    context += f"  Engagement: {eng.get('engagement_level', 0):.1f}/1.0\n"
-                    context += f"  Participation: {eng.get('participation', 0):.1f}/1.0\n"
-                
-                # Add other relevant data
-                context += f"  Maslow Level: {t.get('maslow_level', 'N/A')}\n"
-                context += f"  Burnout Risk: {t.get('burnout_risk', 0):.1f}\n"
+            relevant_twins = _find_relevant_twins(question, twins)
+
+            if any(
+                phrase in normalized_question
+                for phrase in {
+                    "digital twin",
+                    "digital twins",
+                    "from database",
+                    "from db",
+                    "personalized data",
+                    "personalised data",
+                }
+            ):
+                snapshot_source = relevant_twins if relevant_twins else twins
+                return _build_digital_twin_summary(snapshot_source)
+
+            if relevant_twins:
+                context = _build_twin_context(relevant_twins)
+            else:
+                name_hint = _extract_name_hint(question)
+                if name_hint:
+                    available = [str(t.get("name", "")).strip() for t in twins if str(t.get("name", "")).strip()]
+                    preview = ", ".join(available[:10])
+                    return (
+                        f'I could not find "{name_hint}" in digital twins. '
+                        f"Available employees: {preview}. Upload a fresh transcript for {name_hint} to create/update their twin."
+                    )
+
+                # If query is generic HR without a specific person, include broad context.
+                context = _build_twin_context(twins)
         else:
             context = "No employee digital twins found in the system."
         
