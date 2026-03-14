@@ -1,4 +1,3 @@
-
 import { AVATAR_PALETTES, getInitials } from '@/app/data/employees';
 
 interface EmployeeAvatarProps {
@@ -6,6 +5,8 @@ interface EmployeeAvatarProps {
   avatarIndex: number;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
+  /** When set, show photo from Firestore (employee_photos) instead of initials */
+  photoUrl?: string | null;
 }
 
 const sizeMap = {
@@ -15,10 +16,31 @@ const sizeMap = {
   xl: { container: 96, text: 32, font: 700 },
 };
 
-export function EmployeeAvatar({ name, avatarIndex, size = 'md', className = '' }: EmployeeAvatarProps) {
+export function EmployeeAvatar({
+  name,
+  avatarIndex,
+  size = 'md',
+  className = '',
+  photoUrl,
+}: EmployeeAvatarProps) {
   const palette = AVATAR_PALETTES[avatarIndex % AVATAR_PALETTES.length];
   const initials = getInitials(name);
   const { container, text, font } = sizeMap[size];
+
+  if (photoUrl?.trim()) {
+    return (
+      <div
+        className={`rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden bg-accent ${className}`}
+        style={{ width: container, height: container }}
+      >
+        <img
+          src={photoUrl}
+          alt={name}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
 
   return (
     <div

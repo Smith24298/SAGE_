@@ -1,0 +1,81 @@
+{
+  "employee_profiles": {
+    "1": {
+      "name": "Sarah Johnson",
+      "role": "Senior Software Engineer",
+      "department": "Engineering",
+      "manager": "Michael Chen",
+      "dateOfJoining": "Jan 15, 2022",
+      "employmentType": "Full-time",
+      "location": "San Francisco, CA",
+      "employeeId": "EMP-2847",
+      "baseSalary": "$105,000",
+      "bonus": "$15,000",
+      "stockOptions": "$25,000",
+      "totalCompensation": "$145,000",
+      "lastRevision": "Jan 2026",
+      "nextReview": "Jul 2026",
+      "avatarIndex": 0,
+      "salaryHistory": [
+        { "year": "2022", "salary": 75000 },
+        { "year": "2023", "salary": 82000 },
+        { "year": "2024", "salary": 90000 },
+        { "year": "2025", "salary": 98000 },
+        { "year": "2026", "salary": 105000 }
+      ]
+    }
+  },
+  "employee_photos": {
+    "1": {
+      "url": "",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  },
+  "employee_insights": {
+    "1": {
+      "sentiment": 70,
+      "risk": "Medium",
+      "positiveNegative": "75/25",
+      "sentimentTrend": [
+        { "month": "Oct", "score": 78 },
+        { "month": "Nov", "score": 75 },
+        { "month": "Dec", "score": 80 },
+        { "month": "Jan", "score": 72 },
+        { "month": "Feb", "score": 68 },
+        { "month": "Mar", "score": 70 }
+      ],
+      "behavioral": {
+        "communicationStyle": "Direct and collaborative",
+        "personalityTraits": "Analytical, detail-oriented, team player",
+        "motivationDrivers": "Technical challenges, career growth",
+        "feedbackPreference": "Regular, constructive, data-driven",
+        "collaborationStyle": "Proactive, mentorship-oriented"
+      },
+      "engagementMetrics": [
+        { "metric": "Engagement", "score": 75, "fill": "#e1634a" },
+        { "metric": "Participation", "score": 82, "fill": "#6b9080" },
+        { "metric": "Responsiveness", "score": 88, "fill": "#a4b8c4" },
+        { "metric": "Initiative", "score": 70, "fill": "#f4a261" }
+      ],
+      "communication": {
+        "topTopics": ["Technical Architecture", "Team Leadership", "Code Reviews"],
+        "concernsRaised": ["Workload Balance", "Project Deadlines"],
+        "careerInterests": ["Technical Lead Role", "System Design", "Mentoring"],
+        "recentTopics": ["Q1 Goals", "Team Expansion", "New Tech Stack"]
+      },
+      "meetings": [
+        { "date": "March 2026", "topic": "Workload discussion", "sentiment": "Neutral", "color": "bg-yellow-500" },
+        { "date": "February 2026", "topic": "Career growth planning", "sentiment": "Positive", "color": "bg-green-500" },
+        { "date": "January 2026", "topic": "Project completion review", "sentiment": "Positive", "color": "bg-green-500" },
+        { "date": "December 2025", "topic": "Q4 Performance review", "sentiment": "Positive", "color": "bg-green-500" },
+        { "date": "November 2025", "topic": "Team restructuring", "sentiment": "Concerned", "color": "bg-orange-500" }
+      ],
+      "riskIndicators": [
+        { "label": "Burnout Risk", "level": "Medium", "color": "bg-orange-500" },
+        { "label": "Attrition Risk", "level": "Medium", "color": "bg-yellow-500" },
+        { "label": "Engagement Decline", "level": "Medium", "color": "bg-yellow-500" },
+        { "label": "Stress Signals", "level": "High", "color": "bg-red-500" }
+      ]
+    }
+  }
+}

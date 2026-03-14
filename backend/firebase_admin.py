@@ -8,14 +8,39 @@ from typing import Optional
 _firebase_app = None
 
 
+def _resolve_credentials_path(path: str) -> str:
+    """Resolve credentials path across different working directories.
+
+    - If `path` is absolute, return as-is.
+    - If relative, first try relative to this backend package folder.
+    - Otherwise fall back to the original relative path (relative to CWD).
+    """
+
+    if not path:
+        return path
+    if os.path.isabs(path):
+        return path
+
+    backend_dir = os.path.dirname(__file__)
+    candidate = os.path.normpath(os.path.join(backend_dir, path))
+    if os.path.isfile(candidate):
+        return candidate
+
+    return path
+
+
 def get_firebase_app():
     """Return the initialized Firebase Admin app, or None if not configured."""
     global _firebase_app
     if _firebase_app is not None:
         return _firebase_app
 
-    path = os.getenv("FIREBASE_ADMIN_SDK_PATH") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    if not path or not os.path.isfile(path):
+    raw_path = os.getenv("FIREBASE_ADMIN_SDK_PATH") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if not raw_path:
+        return None
+
+    path = _resolve_credentials_path(raw_path)
+    if not os.path.isfile(path):
         return None
 
     import firebase_admin
