@@ -8,6 +8,7 @@ venv/
 env/
 .venv/
 ENV/
+./calendar-key.json.json
 
 # Environment variables (VERY important)
 .env

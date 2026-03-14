@@ -15,6 +15,8 @@ import {
   Upload,
   Loader2,
   CheckCircle2,
+  ClipboardList,
+  Shield,
 } from "lucide-react";
 
 // Define which roles can see which navigation items
@@ -25,6 +27,12 @@ const allNavItems = [
     path: "/employees",
     label: "Employees",
     icon: Users,
+    roles: ["hr_partner"],
+  },
+  {
+    path: "/attendance",
+    label: "Employee Attendance",
+    icon: ClipboardList,
     roles: ["hr_partner"],
   },
   {
@@ -63,6 +71,12 @@ const allNavItems = [
     label: "AI Insights",
     icon: Sparkles,
     roles: ["chro", "hr_partner", "talent_ops", "engagement_manager"],
+  },
+  {
+    path: "/security",
+    label: "Migrations",
+    icon: Shield,
+    roles: ["chro"],
   },
 ];
 
