@@ -5,8 +5,20 @@ from backend.ob_engine.herzberg import herzberg_analysis
 from backend.ob_engine.theory_xy import detect_management_style
 from backend.ob_engine.equity import check_equity_concerns
 from backend.twin_engine.twin_updater import update_digital_twin
+from backend.ob_engine.behavioral_analyzer import analyze_behavioral_intelligence, analyze_engagement_intelligence
+from backend.ob_engine.intelligence_storage import update_digital_twin_with_intelligence
 
-def process_meeting(text: str):
+def process_meeting(text: str, include_behavioral_analysis: bool = True):
+    """
+    Process a meeting transcript and extract insights from all participants.
+    
+    Args:
+        text: Meeting transcript text
+        include_behavioral_analysis: Whether to perform detailed behavioral/engagement analysis
+        
+    Returns:
+        Dictionary with analysis results for each speaker
+    """
     # 1. Parse transcript
     conversations = parse_transcript(text)
     
@@ -43,6 +55,32 @@ def process_meeting(text: str):
         
         # Update Digital Twin
         twin_data = update_digital_twin(speaker, insights, ob_results, combined_text)
+        
+        # Optionally perform detailed behavioral and engagement analysis
+        if include_behavioral_analysis:
+            try:
+                # Get personality data from existing twin if available
+                personality_data = twin_data.get("behavioral_profile", {})
+                
+                # Analyze behavioral intelligence from transcript
+                behavioral_intel = analyze_behavioral_intelligence(personality_data, combined_text)
+                engagement_intel = analyze_engagement_intelligence(combined_text, personality_data)
+                
+                # Store intelligence report and update twin
+                intelligence_report = {
+                    "employee": speaker,
+                    "behavioral_intelligence": behavioral_intel,
+                    "engagement_intelligence": engagement_intel
+                }
+                
+                update_digital_twin_with_intelligence(speaker, intelligence_report)
+                
+                # Add to results
+                twin_data["behavioral_intelligence"] = behavioral_intel
+                twin_data["engagement_intelligence"] = engagement_intel
+            except Exception as e:
+                print(f"Warning: Could not perform behavioral analysis for {speaker}: {e}")
+        
         results[speaker] = twin_data
     
     return results
