@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 
 import { Card } from "../components/ui/card";
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceArea,
+  ReferenceLine,
+  Legend,
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
@@ -25,6 +29,15 @@ const scrollVariants = {
   hidden: { opacity: 0, y: 30 },
   visible: { opacity: 1, y: 0 },
 };
+
+const STATIC_ENGAGEMENT_TREND = [
+  { month: "Oct", score: 68, participation: 71, target: 75 },
+  { month: "Nov", score: 70, participation: 73, target: 75 },
+  { month: "Dec", score: 72, participation: 74, target: 75 },
+  { month: "Jan", score: 74, participation: 76, target: 75 },
+  { month: "Feb", score: 76, participation: 78, target: 75 },
+  { month: "Mar", score: 79, participation: 81, target: 75 },
+];
 
 export function EngagementAnalytics() {
   const [analytics, setAnalytics] = useState<EngagementAnalyticsPayload | null>(
@@ -59,7 +72,9 @@ export function EngagementAnalytics() {
   const highlyEngaged = analytics?.kpis.highlyEngagedPct ?? 0;
   const atRisk = analytics?.kpis.atRiskPct ?? 0;
 
-  const engagementTrend = analytics?.engagementTrend ?? [];
+  const engagementTrend = STATIC_ENGAGEMENT_TREND;
+  const sixMonthDelta =
+    engagementTrend[engagementTrend.length - 1].score - engagementTrend[0].score;
   const engagementFactors = analytics?.engagementFactors ?? [];
 
   return (
@@ -128,11 +143,27 @@ export function EngagementAnalytics() {
           transition={{ duration: 0.5, delay: 0.1 }}
         >
           <Card className="p-6 shadow-md">
-            <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>
-              Engagement Trend (6 Months)
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={engagementTrend}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg" style={{ fontWeight: 600 }}>
+                Engagement Trend (6 Months)
+              </h3>
+              <span
+                className={`rounded-full px-3 py-1 text-xs ${
+                  sixMonthDelta >= 0
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-rose-100 text-rose-700"
+                }`}
+                style={{ fontWeight: 600 }}
+              >
+                {sixMonthDelta >= 0 ? "+" : ""}
+                {sixMonthDelta} pts
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={320}>
+              <ComposedChart
+                data={engagementTrend}
+                margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient
                     id="engagementTrendGrad"
@@ -141,23 +172,52 @@ export function EngagementAnalytics() {
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="5%" stopColor="#e1634a" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#e1634a" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#e1634a" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#e1634a" stopOpacity={0.04} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                <XAxis dataKey="month" stroke="#414240" />
-                <YAxis stroke="#414240" />
-                <Tooltip />
+
+                <CartesianGrid
+                  vertical={false}
+                  strokeDasharray="4 4"
+                  stroke="#d9d9d9"
+                />
+                <ReferenceArea y1={0} y2={69} fill="#d4183d" fillOpacity={0.06} />
+                <ReferenceLine
+                  y={75}
+                  stroke="#6b9080"
+                  strokeDasharray="6 6"
+                  label="Target 75"
+                />
+
+                <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                <YAxis domain={[60, 85]} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: 12,
+                    border: "1px solid rgba(65,66,64,0.12)",
+                  }}
+                />
+                <Legend />
                 <Area
                   type="monotone"
                   dataKey="score"
+                  name="Engagement"
                   stroke="#e1634a"
                   strokeWidth={3}
                   fill="url(#engagementTrendGrad)"
-                  dot={{ fill: "#e1634a", r: 5 }}
+                  dot={{ r: 4, fill: "#e1634a" }}
+                  activeDot={{ r: 7, stroke: "#ffffff", strokeWidth: 2 }}
                 />
-              </AreaChart>
+                <Line
+                  type="monotone"
+                  dataKey="participation"
+                  name="Participation"
+                  stroke="#6b9080"
+                  strokeWidth={2.5}
+                  dot={false}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </Card>
         </motion.div>
