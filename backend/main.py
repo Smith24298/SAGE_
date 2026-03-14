@@ -19,8 +19,11 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from backend.database import db
+from backend.firestore_seed import seed_employees_to_firestore
+from backend.firebase_admin import get_firestore_client
+from backend.mcp.intent_router import classify_intent, route_user_message
 from backend.pipelines.meeting_pipeline import process_meeting
-from backend.rag.hr_assistant import hr_chat
 from backend.ob_engine.behavioral_analyzer import generate_employee_intelligence_report
 from backend.ob_engine.intelligence_storage import (
     store_intelligence_report,
@@ -165,8 +168,30 @@ async def chat(request: ChatRequest):
                 "status": "error",
                 "message": "Question cannot be empty"
             }, 400
-        answer = hr_chat(request.question)
-        return {"response": answer}
+        routed = route_user_message(request.question, concise=True)
+        return routed
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__
+        }, 500
+
+
+@app.post("/api/chat/intent")
+async def chat_intent(request: ChatRequest):
+    """Return intent routing decision without generating a final answer."""
+    try:
+        if not request.question or not request.question.strip():
+            return {
+                "status": "error",
+                "message": "Question cannot be empty"
+            }, 400
+        decision = classify_intent(request.question)
+        return {
+            "status": "success",
+            "routing": decision.to_dict(),
+        }
     except Exception as e:
         return {
             "status": "error",

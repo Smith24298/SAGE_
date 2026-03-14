@@ -8,6 +8,7 @@ from backend.database import db
 from datetime import datetime
 from bson import ObjectId
 from typing import Optional, Dict
+import re
 
 
 def store_intelligence_report(report: dict, employee_id: Optional[str] = None) -> dict:
@@ -152,13 +153,26 @@ def get_employee_behavioral_summary(employee_name: str) -> Optional[dict]:
     if employees is None:
         return None
     
-    twin = employees.find_one({"name": employee_name})
+    lookup = (employee_name or "").strip()
+    if not lookup:
+        return None
+
+    # Try exact match first.
+    twin = employees.find_one({"name": lookup})
+
+    # Fallback: case-insensitive exact match.
+    if not twin:
+        twin = employees.find_one({"name": {"$regex": f"^{re.escape(lookup)}$", "$options": "i"}})
+
+    # Fallback: case-insensitive partial match (helps when using first name queries).
+    if not twin:
+        twin = employees.find_one({"name": {"$regex": re.escape(lookup), "$options": "i"}})
     
     if not twin:
         return None
     
     return {
-        "employee": employee_name,
+        "employee": twin.get("name", lookup),
         "behavioral_profile": twin.get("behavioral_profile"),
         "engagement_profile": twin.get("engagement_profile"),
         "last_updated": twin.get("updated_at")
