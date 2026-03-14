@@ -9,6 +9,7 @@ import {
   Video,
   FileText,
   Sparkles,
+  Calendar,
 } from "lucide-react";
 
 // Define which roles can see which navigation items
@@ -22,6 +23,13 @@ const allNavItems = [
     icon: TrendingUp,
     roles: ["talent_ops"]
   },
+  { 
+    path: "/employee-insights", 
+    label: "Employee Insights", 
+    icon: Sparkles, 
+    roles: ["talent_ops"] 
+  },
+  { path: "/events", label: "Events", icon: Calendar, roles: ["engagement_manager"] },
   { path: "/engagement-analytics", label: "Engagement Analytics", icon: Heart, roles: ["engagement_manager"] },
   { path: "/meeting-intelligence", label: "Meeting Intelligence", icon: Video, roles: ["hr_partner", "engagement_manager", "talent_ops"] },
   { path: "/documents", label: "Documents", icon: FileText, roles: ["chro", "hr_partner", "talent_ops", "engagement_manager"] },

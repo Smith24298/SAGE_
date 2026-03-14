@@ -31,8 +31,11 @@ from backend.ob_engine.intelligence_storage import (
     update_digital_twin_with_intelligence,
     get_employee_behavioral_summary
 )
+from backend.calendar_service import router as calendar_router
 
 app = FastAPI(title="AI HR Digital Twin Intelligence System")
+
+app.include_router(calendar_router)
 
 
 @app.on_event("startup")
