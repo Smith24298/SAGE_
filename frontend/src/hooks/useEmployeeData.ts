@@ -16,7 +16,6 @@ import {
   type MeetingItem,
   type RiskIndicator,
 } from '@/lib/employeeFirestore';
-import { isFirebaseConfigured } from '@/lib/firebase';
 
 export interface SalaryHistoryPoint {
   year: string;
@@ -158,11 +157,6 @@ export function useEmployeeData(employeeId: number | string): UseEmployeeDataRes
       setRiskIndicators(null);
       setPhotoUrl(null);
       setFromFirestore(false);
-
-      if (!isFirebaseConfigured()) {
-        setLoading(false);
-        return;
-      }
 
       try {
         const [profile, photo, insights] = await Promise.all([

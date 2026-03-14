@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { employees } from '@/app/data/employees';
 import type { Employee } from '@/app/data/employees';
 import { listEmployeesFromFirestore, type EmployeeListItem } from '@/lib/employeeFirestore';
-import { isFirebaseConfigured } from '@/lib/firebase';
 
 export interface UseEmployeesListResult {
   employees: (Employee & { photoUrl?: string | null })[];
@@ -21,11 +20,6 @@ export function useEmployeesList(): UseEmployeesListResult {
     let cancelled = false;
     setList(employees);
     setFromFirestore(false);
-
-    if (!isFirebaseConfigured()) {
-      setLoading(false);
-      return;
-    }
 
     listEmployeesFromFirestore()
       .then((firestoreList: EmployeeListItem[]) => {
