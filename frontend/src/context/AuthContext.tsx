@@ -157,10 +157,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     const auth = getFirebaseAuth();
-    if (auth) signOut(auth);
+    if (auth) await signOut(auth);
     setUser(null);
+    window.location.href = '/';
   };
 
   const setRole = async (role: UserRole) => {

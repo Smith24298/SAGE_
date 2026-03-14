@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion } from 'motion/react';
 import { Moon, Sun, LogOut, Shield } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
@@ -57,14 +58,14 @@ export function Navbar() {
       }`}
     >
       <div className="max-w-full px-6 py-4 flex items-center justify-between">
-        <div className="flex flex-col">
+        <Link href="/" className="flex flex-col hover:opacity-80 transition-opacity">
           <div className="text-xl tracking-wide" style={{ fontWeight: 600 }}>
             SAGE
           </div>
           <div className="text-xs text-muted-foreground">
             Strategic Advisor for Growth and Engagement
           </div>
-        </div>
+        </Link>
 
         <div className="flex items-center gap-4">
           <FloatingParticles />
