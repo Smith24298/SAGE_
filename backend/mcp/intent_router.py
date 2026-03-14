@@ -9,10 +9,12 @@ from dataclasses import dataclass
 from backend.ai.general_chat import general_chat
 from backend.ai.llm import llm
 from backend.database import employees
+from backend.mcp.navigation_resolver import navigation_reply_text, resolve_navigation
 from backend.rag.hr_assistant import hr_chat
 
 MEETING_HR_MODE = "meeting_hr"
 CASUAL_GENERAL_MODE = "casual_general"
+NAVIGATION_MODE = "navigation"
 
 HR_KEYWORDS = {
     "meeting",
@@ -162,11 +164,12 @@ def _employee_name_hits(text: str) -> list[str]:
 def _llm_classify(question: str) -> IntentDecision:
     prompt = f"""
 Classify this user message into exactly one mode:
+- "navigation": user wants to open/go to a product page or profile.
 - "meeting_hr": about meetings, employees, HR analytics, transcripts, workplace behavior, engagement, management, digital twins.
 - "casual_general": general knowledge or casual conversation not tied to HR/workplace meeting data.
 
 Return ONLY strict JSON:
-{{"mode":"meeting_hr|casual_general","confidence":0.0,"reason":"short reason"}}
+{{"mode":"navigation|meeting_hr|casual_general","confidence":0.0,"reason":"short reason"}}
 
 Message:
 {question}
@@ -178,7 +181,7 @@ Message:
         data = json.loads(_strip_code_fence(str(raw)))
 
         mode = str(data.get("mode", "")).strip().lower()
-        if mode not in {MEETING_HR_MODE, CASUAL_GENERAL_MODE}:
+        if mode not in {NAVIGATION_MODE, MEETING_HR_MODE, CASUAL_GENERAL_MODE}:
             mode = CASUAL_GENERAL_MODE
 
         confidence = float(data.get("confidence", 0.6))
@@ -207,6 +210,15 @@ def classify_intent(question: str) -> IntentDecision:
             confidence=0.98,
             reason="Empty question defaults to casual/general mode.",
             source="heuristic",
+        )
+
+    navigation = resolve_navigation(question)
+    if navigation is not None:
+        return IntentDecision(
+            mode=NAVIGATION_MODE,
+            confidence=max(0.82, navigation.confidence),
+            reason=navigation.reason,
+            source="navigation-resolver",
         )
 
     if "digital twin" in text or "digital twins" in text:
@@ -287,6 +299,21 @@ def classify_intent(question: str) -> IntentDecision:
 
 
 def route_user_message(question: str, concise: bool = True) -> dict:
+    navigation = resolve_navigation(question)
+    if navigation is not None:
+        decision = IntentDecision(
+            mode=NAVIGATION_MODE,
+            confidence=max(0.82, navigation.confidence),
+            reason=navigation.reason,
+            source="navigation-resolver",
+        )
+        return {
+            "response": navigation_reply_text(navigation),
+            "mode": decision.mode,
+            "routing": decision.to_dict(),
+            "navigation": navigation.to_dict(),
+        }
+
     decision = classify_intent(question)
 
     if decision.mode == MEETING_HR_MODE:
@@ -298,4 +325,5 @@ def route_user_message(question: str, concise: bool = True) -> dict:
         "response": answer,
         "mode": decision.mode,
         "routing": decision.to_dict(),
+        "navigation": None,
     }

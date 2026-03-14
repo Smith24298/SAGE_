@@ -22,7 +22,8 @@ from pydantic import BaseModel
 from backend.database import db
 from backend.firestore_seed import seed_employees_to_firestore
 from backend.firebase_admin import get_firestore_client
-from backend.mcp.intent_router import classify_intent, route_user_message
+from backend.mcp.intent_router import NAVIGATION_MODE, classify_intent, route_user_message
+from backend.mcp.navigation_resolver import resolve_navigation
 from backend.employee_store import (
     get_employee_insights,
     get_employee_profile,
@@ -39,6 +40,7 @@ from backend.ob_engine.intelligence_storage import (
     get_employee_behavioral_summary
 )
 from backend.calendar_service import router as calendar_router
+from backend.dashboard_overview import build_dashboard_overview
 
 app = FastAPI(title="AI HR Digital Twin Intelligence System")
 
@@ -199,9 +201,11 @@ async def chat_intent(request: ChatRequest):
                 "message": "Question cannot be empty"
             }, 400
         decision = classify_intent(request.question)
+        navigation = resolve_navigation(request.question) if decision.mode == NAVIGATION_MODE else None
         return {
             "status": "success",
             "routing": decision.to_dict(),
+            "navigation": navigation.to_dict() if navigation else None,
         }
     except Exception as e:
         return {
@@ -414,6 +418,23 @@ async def get_meeting_summary(summary_id: str):
         return {"status": "success", "summary": doc}
     except Exception as e:
         return {"status": "error", "message": str(e)}, 500
+
+
+@app.get("/api/dashboard/overview")
+async def get_dashboard_overview():
+    """Return Mongo-backed analytics payload for CHRO dashboard cards and charts."""
+    try:
+        overview = build_dashboard_overview()
+        return {
+            "status": "success",
+            "overview": overview,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__,
+        }, 500
 
 @app.get("/api/intelligence/summary/{employee_name}")
 async def get_summary(employee_name: str):

@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X, Send, Loader, Paperclip } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { fetchChat, uploadTranscript } from "@/lib/api";
+import { useRouter } from "next/router";
+
+import {
+  fetchChat,
+  uploadTranscript,
+  type ChatNavigationPayload,
+} from "@/lib/api";
+import { useAuth, type UserRole } from "@/context/AuthContext";
 
 interface Message {
   id: string;
@@ -12,7 +19,83 @@ interface Message {
   timestamp: Date;
 }
 
+const ROLE_ALLOWED_ROUTE_PATTERNS: Record<UserRole, string[]> = {
+  chro: [
+    "/",
+    "/dashboard",
+    "/departments",
+    "/department/*",
+    "/documents",
+    "/ai-insights",
+  ],
+  hr_partner: [
+    "/employees",
+    "/employee/*",
+    "/meeting-intelligence",
+    "/documents",
+    "/ai-insights",
+  ],
+  talent_ops: [
+    "/workforce-insights",
+    "/employee-insights",
+    "/employee/*",
+    "/meeting-intelligence",
+    "/documents",
+    "/ai-insights",
+    "/candidates",
+  ],
+  engagement_manager: [
+    "/events",
+    "/engagement-analytics",
+    "/meeting-intelligence",
+    "/documents",
+    "/ai-insights",
+  ],
+};
+
+function routePatternMatches(pattern: string, path: string): boolean {
+  if (pattern.endsWith("*")) {
+    const prefix = pattern.slice(0, -1);
+    return path.startsWith(prefix);
+  }
+  return pattern === path;
+}
+
+function isPathAllowedForRole(path: string, role: UserRole | null | undefined): boolean {
+  if (!role || !path) {
+    return false;
+  }
+  const patterns = ROLE_ALLOWED_ROUTE_PATTERNS[role] ?? [];
+  return patterns.some((pattern) => routePatternMatches(pattern, path));
+}
+
+function resolveNavigationPath(
+  navigation: ChatNavigationPayload,
+  role: UserRole | null | undefined,
+): { targetPath: string | null; note: string } {
+  const requestedPath = navigation.path;
+  const fallbackPath = navigation.fallback_path;
+
+  if (requestedPath && isPathAllowedForRole(requestedPath, role)) {
+    return { targetPath: requestedPath, note: "" };
+  }
+
+  if (fallbackPath && isPathAllowedForRole(fallbackPath, role)) {
+    return {
+      targetPath: fallbackPath,
+      note: `\n\nI could not open ${navigation.label} with your current role, so I opened a related page instead.`,
+    };
+  }
+
+  return {
+    targetPath: null,
+    note: "\n\nI found a destination, but it is not available for your current role.",
+  };
+}
+
 export function ChatbotButton() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -112,11 +195,29 @@ export function ChatbotButton() {
       try {
         // Always route through backend so MCP intent + digital twin context is applied.
         console.log("Sending to chat endpoint:", input);
-        assistantResponse = await fetchChat(input);
+        const chatResult = await fetchChat(input);
+        assistantResponse = chatResult.response;
         console.log(
           "Chat response:",
-          assistantResponse.substring(0, 100) + "...",
+          chatResult.response.substring(0, 100) + "...",
         );
+
+        if (chatResult.navigation?.should_navigate && chatResult.navigation.path) {
+          const { targetPath, note } = resolveNavigationPath(chatResult.navigation, user?.role);
+          assistantResponse += note;
+
+          if (targetPath) {
+            const currentPath = (router.asPath ?? "").split("?")[0];
+            if (currentPath !== targetPath) {
+              assistantResponse += `\n\nNavigating to ${targetPath}...`;
+              window.setTimeout(() => {
+                router.push(targetPath);
+              }, 220);
+            } else {
+              assistantResponse += "\n\nYou are already on that page.";
+            }
+          }
+        }
       } catch (error) {
         console.error("Chat error:", error);
         assistantResponse =

@@ -14,7 +14,38 @@ interface ApiResponse<T> {
   [key: string]: any;
 }
 
-export async function fetchChat(question: string): Promise<string> {
+export interface ChatRoutingDecision {
+  mode: string;
+  confidence: number;
+  reason: string;
+  source: string;
+}
+
+export interface ChatNavigationEntity {
+  type?: string;
+  id?: string;
+  name?: string;
+  [key: string]: any;
+}
+
+export interface ChatNavigationPayload {
+  should_navigate: boolean;
+  path: string;
+  label: string;
+  confidence: number;
+  reason: string;
+  entity?: ChatNavigationEntity;
+  fallback_path?: string;
+}
+
+export interface ChatResponsePayload {
+  response: string;
+  mode?: string;
+  routing?: ChatRoutingDecision;
+  navigation?: ChatNavigationPayload | null;
+}
+
+export async function fetchChat(question: string): Promise<ChatResponsePayload> {
   if (!question || !question.trim()) {
     throw new Error('Question cannot be empty');
   }
@@ -35,15 +66,25 @@ export async function fetchChat(question: string): Promise<string> {
       throw new Error(`Chat API error: ${response.status} ${response.statusText}`);
     }
 
-    const data: ApiResponse<string> = await response.json();
+    const data: ApiResponse<ChatResponsePayload> = await response.json();
     
-    if (!data.response) {
+    if (typeof data.response !== 'string' || !data.response.trim()) {
       console.warn('Chat response missing response field:', data);
-      return 'I could not generate a response. Please try again.';
+      return {
+        response: 'I could not generate a response. Please try again.',
+        mode: typeof data.mode === 'string' ? data.mode : undefined,
+        routing: data.routing,
+        navigation: data.navigation ?? null,
+      };
     }
 
     console.log('Chat response received:', data.response.substring(0, 100) + '...');
-    return data.response;
+    return {
+      response: data.response,
+      mode: typeof data.mode === 'string' ? data.mode : undefined,
+      routing: data.routing,
+      navigation: data.navigation ?? null,
+    };
   } catch (error) {
     console.error('Chat API error:', error);
     throw error;
@@ -382,4 +423,117 @@ export async function createCalendarEvent(
     event_link: rawEvent?.event_link ?? data?.event_link,
     google_sync_error: rawEvent?.google_sync_error ?? data?.google_sync_error,
   });
+}
+
+export interface DashboardMetrics {
+  totalEmployees: number;
+  companyEngagement: number;
+  attritionRisk: number;
+  workforceGrowth: number;
+}
+
+export interface DashboardSentimentPoint {
+  month: string;
+  score: number;
+}
+
+export interface DashboardDepartmentPoint {
+  department: string;
+  stress: number;
+  engagement: number;
+}
+
+export interface DashboardAttritionSlice {
+  name: string;
+  value: number;
+}
+
+export interface DashboardStrategicInsight {
+  latestInsight: string;
+  recommendation: string;
+}
+
+export interface DashboardOverview {
+  metrics: DashboardMetrics;
+  sentimentTrend: DashboardSentimentPoint[];
+  departmentStressEngagement: DashboardDepartmentPoint[];
+  attritionPrediction: DashboardAttritionSlice[];
+  strategicInsight: DashboardStrategicInsight;
+}
+
+function toNumber(value: unknown, fallback: number = 0): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function normalizeDashboardOverview(raw: Record<string, any>): DashboardOverview {
+  const metricsRaw = raw?.metrics ?? {};
+  const strategicRaw = raw?.strategicInsight ?? {};
+
+  const sentimentTrend = Array.isArray(raw?.sentimentTrend)
+    ? raw.sentimentTrend.map((point: Record<string, any>) => ({
+        month: String(point?.month ?? ""),
+        score: toNumber(point?.score, 0),
+      }))
+    : [];
+
+  const departmentStressEngagement = Array.isArray(raw?.departmentStressEngagement)
+    ? raw.departmentStressEngagement.map((point: Record<string, any>) => ({
+        department: String(point?.department ?? "Unknown"),
+        stress: toNumber(point?.stress, 0),
+        engagement: toNumber(point?.engagement, 0),
+      }))
+    : [];
+
+  const attritionPrediction = Array.isArray(raw?.attritionPrediction)
+    ? raw.attritionPrediction.map((slice: Record<string, any>) => ({
+        name: String(slice?.name ?? "Unknown"),
+        value: toNumber(slice?.value, 0),
+      }))
+    : [];
+
+  return {
+    metrics: {
+      totalEmployees: toNumber(metricsRaw?.totalEmployees, 0),
+      companyEngagement: toNumber(metricsRaw?.companyEngagement, 0),
+      attritionRisk: toNumber(metricsRaw?.attritionRisk, 0),
+      workforceGrowth: toNumber(metricsRaw?.workforceGrowth, 0),
+    },
+    sentimentTrend,
+    departmentStressEngagement,
+    attritionPrediction,
+    strategicInsight: {
+      latestInsight: String(strategicRaw?.latestInsight ?? ""),
+      recommendation: String(strategicRaw?.recommendation ?? ""),
+    },
+  };
+}
+
+export async function getDashboardOverview(): Promise<DashboardOverview | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/dashboard/overview`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Dashboard API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const overview = data?.overview ?? data;
+    if (!overview || typeof overview !== "object") {
+      return null;
+    }
+
+    return normalizeDashboardOverview(overview);
+  } catch (error) {
+    console.error("getDashboardOverview error:", error);
+    return null;
+  }
 }

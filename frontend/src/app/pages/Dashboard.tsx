@@ -29,8 +29,13 @@ import { motion, useInView } from "motion/react";
 import { useRef, useEffect, useState } from "react";
 import {
   getCalendarEvents,
+  getDashboardOverview,
   getMeetingSummaries,
   type CalendarEventRecord,
+  type DashboardAttritionSlice,
+  type DashboardDepartmentPoint,
+  type DashboardOverview,
+  type DashboardSentimentPoint,
 } from "@/lib/api";
 
 /** Triggers Recharts' built-in bar rise animation when it scrolls into view */
@@ -44,7 +49,7 @@ function useScrollAnimationKey() {
   return { ref, animKey };
 }
 
-const sentimentData = [
+const DEFAULT_SENTIMENT_DATA: DashboardSentimentPoint[] = [
   { month: "Oct", score: 72 },
   { month: "Nov", score: 68 },
   { month: "Dec", score: 75 },
@@ -53,7 +58,7 @@ const sentimentData = [
   { month: "Mar", score: 74 },
 ];
 
-const departmentData = [
+const DEFAULT_DEPARTMENT_DATA: DashboardDepartmentPoint[] = [
   { department: "Engineering", stress: 65, engagement: 82 },
   { department: "Sales", stress: 58, engagement: 75 },
   { department: "Marketing", stress: 52, engagement: 88 },
@@ -61,7 +66,7 @@ const departmentData = [
   { department: "Finance", stress: 60, engagement: 78 },
 ];
 
-const attritionPrediction = [
+const DEFAULT_ATTRITION_PREDICTION: DashboardAttritionSlice[] = [
   { name: "Low Risk", value: 65 },
   { name: "Medium Risk", value: 23 },
   { name: "High Risk", value: 12 },
@@ -306,7 +311,7 @@ function MeetingInsights() {
   );
 }
 
-function DeptStressBarChart() {
+function DeptStressBarChart({ departmentData }: { departmentData: DashboardDepartmentPoint[] }) {
   const { ref, animKey } = useScrollAnimationKey();
   return (
     <motion.div
@@ -369,18 +374,13 @@ function DeptStressBarChart() {
   );
 }
 
-function StrategicInsights() {
-  const [summaries, setSummaries] = useState<any[]>([]);
-
-  useEffect(() => {
-    async function fetchSummaries() {
-      const data = await getMeetingSummaries(1);
-      setSummaries(data);
-    }
-    fetchSummaries();
-  }, []);
-
-  const latestMeeting = summaries[0];
+function StrategicInsights({
+  latestInsight,
+  recommendation,
+}: {
+  latestInsight: string;
+  recommendation: string;
+}) {
 
   return (
     <motion.div
@@ -404,39 +404,13 @@ function StrategicInsights() {
                 <span className="text-xs uppercase font-bold text-muted-foreground">
                   Latest AI Insight
                 </span>
-                {latestMeeting ? (
-                  <p className="mt-1 text-sm">
-                    In the latest meeting on {latestMeeting.date},{" "}
-                    {latestMeeting.attendees} participants discussed{" "}
-                    {latestMeeting.topics.join(", ")}. Overall sentiment was{" "}
-                    {latestMeeting.avgSentiment > 80
-                      ? "very positive"
-                      : latestMeeting.avgSentiment > 70
-                        ? "positive"
-                        : "mixed"}
-                    .
-                  </p>
-                ) : (
-                  <p className="mt-1 text-sm">
-                    Engineering engagement has declined by 12% this quarter.
-                  </p>
-                )}
+                <p className="mt-1 text-sm">{latestInsight}</p>
               </div>
               <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg">
                 <span className="text-xs uppercase font-bold text-primary">
                   Recommendation
                 </span>
-                {latestMeeting && latestMeeting.avgSentiment < 75 ? (
-                  <p className="mt-1 text-sm font-medium">
-                    Follow up on specific resource and workload concerns raised
-                    in the recent meeting.
-                  </p>
-                ) : (
-                  <p className="mt-1 text-sm font-medium">
-                    Continue current leadership support and monitor team
-                    feedback loops.
-                  </p>
-                )}
+                <p className="mt-1 text-sm font-medium">{recommendation}</p>
               </div>
             </div>
           </div>
@@ -447,6 +421,57 @@ function StrategicInsights() {
 }
 
 export function Dashboard() {
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchOverview() {
+      const data = await getDashboardOverview();
+      if (!isMounted) {
+        return;
+      }
+      setOverview(data);
+    }
+
+    fetchOverview();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const sentimentData =
+    overview?.sentimentTrend && overview.sentimentTrend.length > 0
+      ? overview.sentimentTrend
+      : DEFAULT_SENTIMENT_DATA;
+
+  const departmentData =
+    overview?.departmentStressEngagement && overview.departmentStressEngagement.length > 0
+      ? overview.departmentStressEngagement
+      : DEFAULT_DEPARTMENT_DATA;
+
+  const attritionPrediction =
+    overview?.attritionPrediction && overview.attritionPrediction.length > 0
+      ? overview.attritionPrediction
+      : DEFAULT_ATTRITION_PREDICTION;
+
+  const totalEmployees = overview?.metrics.totalEmployees ?? 0;
+  const companyEngagement = overview?.metrics.companyEngagement ?? 0;
+  const attritionRisk = overview?.metrics.attritionRisk ?? 0;
+  const workforceGrowth = overview?.metrics.workforceGrowth ?? 0;
+
+  const strategicInsight =
+    overview?.strategicInsight?.latestInsight ||
+    "No recent strategic insight available yet. Upload meeting data to enrich this section.";
+  const strategicRecommendation =
+    overview?.strategicInsight?.recommendation ||
+    "Continue collecting sentiment and engagement data for stronger recommendations.";
+
+  const growthChange = `${workforceGrowth >= 0 ? "+" : ""}${workforceGrowth.toFixed(1)}%`;
+  const workforceTrend: "up" | "down" = workforceGrowth >= 0 ? "up" : "down";
+  const attritionTrend: "up" | "down" = attritionRisk > 20 ? "up" : "down";
+
   return (
     <div className="space-y-6">
       <div>
@@ -462,17 +487,17 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Total Employees"
-          value="342"
-          change="+8"
-          trend="up"
+          value={String(totalEmployees)}
+          change={growthChange}
+          trend={workforceTrend}
           icon={Users}
           color="text-primary"
           delay={0}
         />
         <MetricCard
           title="Company Engagement"
-          value="74%"
-          change="+3.2%"
+          value={`${companyEngagement.toFixed(1)}%`}
+          change={companyEngagement >= 70 ? "+healthy" : "needs attention"}
           trend="up"
           icon={Heart}
           color="text-chart-2"
@@ -480,18 +505,18 @@ export function Dashboard() {
         />
         <MetricCard
           title="Attrition Risk"
-          value="12%"
-          change="+2.1%"
-          trend="up"
+          value={`${attritionRisk.toFixed(1)}%`}
+          change={attritionRisk > 20 ? "high" : "stable"}
+          trend={attritionTrend}
           icon={AlertCircle}
           color="text-destructive"
           delay={0.1}
         />
         <MetricCard
           title="Workforce Growth"
-          value="18%"
-          change="+2%"
-          trend="up"
+          value={`${workforceGrowth.toFixed(1)}%`}
+          change={growthChange}
+          trend={workforceTrend}
           icon={TrendingUp}
           color="text-chart-4"
           delay={0.15}
@@ -582,7 +607,7 @@ export function Dashboard() {
         </motion.div>
 
         {/* Department Engagement Comparison */}
-        <DeptStressBarChart />
+        <DeptStressBarChart departmentData={departmentData} />
 
         {/* Meeting Activity Insights */}
         <MeetingInsights />
@@ -644,7 +669,10 @@ export function Dashboard() {
       </div>
 
       {/* AI Insights */}
-      <StrategicInsights />
+      <StrategicInsights
+        latestInsight={strategicInsight}
+        recommendation={strategicRecommendation}
+      />
     </div>
   );
 }
