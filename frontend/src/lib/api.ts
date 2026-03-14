@@ -4,10 +4,9 @@
 
 function normalizeApiBaseUrl(raw: string | undefined): string {
   const trimmed = String(raw ?? '').trim();
-  const fallback = 'http://localhost:8000';
-
+  // If unset, use same-origin relative requests (works with a reverse proxy or Next rewrites).
   if (!trimmed) {
-    return fallback;
+    return '';
   }
 
   // If user provided e.g. "localhost:8000" without scheme, browser fetch will fail.
@@ -16,6 +15,7 @@ function normalizeApiBaseUrl(raw: string | undefined): string {
 }
 
 const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+const API_DEBUG = String(process.env.NEXT_PUBLIC_API_DEBUG ?? '').toLowerCase() === 'true';
 
 interface ApiResponse<T> {
   status: string;
@@ -60,7 +60,7 @@ export async function fetchChat(question: string): Promise<ChatResponsePayload> 
 
   try {
     const url = `${API_BASE_URL}/chat`;
-    console.log(`Sending chat to: ${url}`);
+    if (API_DEBUG) console.log(`Sending chat to: ${url}`);
 
     const response: Response = await fetch(url, {
       method: 'POST',
@@ -86,7 +86,7 @@ export async function fetchChat(question: string): Promise<ChatResponsePayload> 
       };
     }
 
-    console.log('Chat response received:', data.response.substring(0, 100) + '...');
+    if (API_DEBUG) console.log('Chat response received:', data.response.substring(0, 100) + '...');
     return {
       response: data.response,
       mode: typeof data.mode === 'string' ? data.mode : undefined,
@@ -142,8 +142,8 @@ export async function getEmployeeSummary(employeeName: string) {
   try {
     const encodedName = encodeURIComponent(employeeName.trim());
     const url = `${API_BASE_URL}/api/intelligence/summary/${encodedName}`;
-    
-    console.log(`Fetching employee summary from: ${url}`);
+
+    if (API_DEBUG) console.log(`Fetching employee summary from: ${url}`);
 
     const response: Response = await fetch(url, {
       method: 'GET',
@@ -174,7 +174,7 @@ export async function getEmployeeSummary(employeeName: string) {
       return null;
     }
 
-    console.log(`Successfully fetched summary for ${employeeName}:`, data.summary);
+    if (API_DEBUG) console.log(`Successfully fetched summary for ${employeeName}:`, data.summary);
     return data.summary;
   } catch (error) {
     console.error('Summary API error:', error);
@@ -187,8 +187,8 @@ export async function getIntelligenceHistory(employeeName: string, limit: number
   try {
     const encodedName = encodeURIComponent(employeeName.trim());
     const url = `${API_BASE_URL}/api/intelligence/history/${encodedName}?limit=${limit}`;
-    
-    console.log(`Fetching intelligence history from: ${url}`);
+
+    if (API_DEBUG) console.log(`Fetching intelligence history from: ${url}`);
 
     const response: Response = await fetch(url, {
       method: 'GET',
@@ -208,7 +208,7 @@ export async function getIntelligenceHistory(employeeName: string, limit: number
       return [];
     }
 
-    console.log(`Retrieved ${data.reports.length} reports for ${employeeName}`);
+    if (API_DEBUG) console.log(`Retrieved ${data.reports.length} reports for ${employeeName}`);
     return data.reports;
   } catch (error) {
     console.error('History API error:', error);
@@ -269,7 +269,7 @@ export async function getMeetingSummary(id: string) {
 export async function checkApiHealth(): Promise<boolean> {
   try {
     const url = `${API_BASE_URL}/health`;
-    console.log(`Checking API health: ${url}`);
+    if (API_DEBUG) console.log(`Checking API health: ${url}`);
 
     const response: Response = await fetch(url, {
       method: 'GET',
@@ -281,7 +281,7 @@ export async function checkApiHealth(): Promise<boolean> {
     }
 
     const data = await response.json();
-    console.log('API health check passed:', data);
+    if (API_DEBUG) console.log('API health check passed:', data);
     return true;
   } catch (error) {
     console.error('API health check error:', error);
@@ -291,7 +291,7 @@ export async function checkApiHealth(): Promise<boolean> {
 
 export async function debugEmployeeSummary(employeeName: string): Promise<void> {
   console.group(`Debug: getEmployeeSummary("${employeeName}")`);
-  console.log(`API_BASE_URL: ${API_BASE_URL}`);
+  console.log(`API_BASE_URL: ${API_BASE_URL || '(same-origin)'}`);
   console.log(`Employee name: "${employeeName}"`);
   console.log(`Encoded name: "${encodeURIComponent(employeeName)}"`);
   

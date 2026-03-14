@@ -111,23 +111,41 @@ async def _ensure_mongo_collections_on_startup():
         # Non-fatal
         print(f"[mongo-bootstrap] Failed: {e}")
 
-frontend_origins = os.getenv("FRONTEND_ORIGINS", "")
-allowed_origins = [
-    origin.strip() for origin in frontend_origins.split(",") if origin.strip()
-]
+app_env = os.getenv("APP_ENV", os.getenv("ENV", "development")).lower()
 
-if not allowed_origins:
+# CORS configuration
+# - For normal production, set FRONTEND_ORIGINS to your deployed frontend URL(s).
+# - To allow the API to be called from ANY website globally (not recommended for private APIs),
+#   set FRONTEND_ORIGINS='*' OR CORS_ALLOW_ALL=true.
+cors_allow_all = os.getenv("CORS_ALLOW_ALL", "").strip().lower() in {"1", "true", "yes"}
+frontend_origins_raw = os.getenv("FRONTEND_ORIGINS", "").strip()
+
+if cors_allow_all or frontend_origins_raw == "*":
+    allowed_origins = ["*"]
+    allow_credentials = False  # cannot be True with '*' per CORS spec
+else:
     allowed_origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
+        origin.strip() for origin in frontend_origins_raw.split(",") if origin.strip()
     ]
+    allow_credentials = True
+
+    if not allowed_origins:
+        if app_env not in {"prod", "production"}:
+            allowed_origins = [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+            ]
+        else:
+            # In production, require explicit FRONTEND_ORIGINS when calling cross-origin.
+            # Same-origin deployments (reverse proxy) don't require CORS.
+            allowed_origins = []
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
