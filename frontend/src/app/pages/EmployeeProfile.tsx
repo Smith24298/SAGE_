@@ -24,50 +24,13 @@ import { Button } from '../components/ui/button';
 import { motion, useInView, animate } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { EmployeeAvatar } from '../components/EmployeeAvatar';
-import { Employee, getEmployeeById } from '../data/employees';
+import { Employee } from '../data/employees';
 import { ReportModal } from '../components/ReportModal';
+import { useEmployeeData } from '@/hooks/useEmployeeData';
 
 interface EmployeeProfileProps {
   employeeId?: number;
 }
-
-// Per-employee sentiment/salary data (keyed by employee id, defaults to id=1)
-const salaryHistoryByEmployee: Record<number, { year: string; salary: number }[]> = {
-  1: [{ year: '2022', salary: 75000 }, { year: '2023', salary: 82000 }, { year: '2024', salary: 90000 }, { year: '2025', salary: 98000 }, { year: '2026', salary: 105000 }],
-  2: [{ year: '2020', salary: 115000 }, { year: '2021', salary: 122000 }, { year: '2022', salary: 130000 }, { year: '2025', salary: 138000 }, { year: '2026', salary: 145000 }],
-  3: [{ year: '2021', salary: 78000 }, { year: '2022', salary: 84000 }, { year: '2023', salary: 90000 }, { year: '2024', salary: 95000 }, { year: '2026', salary: 98000 }],
-  4: [{ year: '2019', salary: 100000 }, { year: '2021', salary: 112000 }, { year: '2022', salary: 120000 }, { year: '2024', salary: 128000 }, { year: '2026', salary: 135000 }],
-  5: [{ year: '2021', salary: 88000 }, { year: '2022', salary: 95000 }, { year: '2023', salary: 100000 }, { year: '2024', salary: 106000 }, { year: '2026', salary: 110000 }],
-  6: [{ year: '2023', salary: 78000 }, { year: '2024', salary: 83000 }, { year: '2025', salary: 86000 }, { year: '2026', salary: 88000 }],
-  7: [{ year: '2020', salary: 72000 }, { year: '2021', salary: 80000 }, { year: '2022', salary: 86000 }, { year: '2024', salary: 91000 }, { year: '2026', salary: 95000 }],
-  8: [{ year: '2022', salary: 76000 }, { year: '2023', salary: 82000 }, { year: '2024', salary: 87000 }, { year: '2025', salary: 90000 }, { year: '2026', salary: 92000 }],
-};
-
-const defaultSalaryHistory = salaryHistoryByEmployee[1];
-
-const sentimentTrend = [
-  { month: 'Oct', score: 78 },
-  { month: 'Nov', score: 75 },
-  { month: 'Dec', score: 80 },
-  { month: 'Jan', score: 72 },
-  { month: 'Feb', score: 68 },
-  { month: 'Mar', score: 70 },
-];
-
-const engagementMetrics = [
-  { metric: 'Engagement', score: 75, fill: '#e1634a' },
-  { metric: 'Participation', score: 82, fill: '#6b9080' },
-  { metric: 'Responsiveness', score: 88, fill: '#a4b8c4' },
-  { metric: 'Initiative', score: 70, fill: '#f4a261' },
-];
-
-const meetings = [
-  { date: 'March 2026', topic: 'Workload discussion', sentiment: 'Neutral', color: 'bg-yellow-500' },
-  { date: 'February 2026', topic: 'Career growth planning', sentiment: 'Positive', color: 'bg-green-500' },
-  { date: 'January 2026', topic: 'Project completion review', sentiment: 'Positive', color: 'bg-green-500' },
-  { date: 'December 2025', topic: 'Q4 Performance review', sentiment: 'Positive', color: 'bg-green-500' },
-  { date: 'November 2025', topic: 'Team restructuring', sentiment: 'Concerned', color: 'bg-orange-500' },
-];
 
 const scrollVariants = {
   hidden: { opacity: 0, y: 30 },
@@ -127,9 +90,47 @@ function CircularProgress({ score, fill, metric }: { score: number; fill: string
 }
 
 export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
-  const employee = getEmployeeById(employeeId) ?? getEmployeeById(1)!;
-  const salaryHistory = salaryHistoryByEmployee[employee.id] ?? defaultSalaryHistory;
+  const {
+    employee,
+    photoUrl,
+    salaryHistory,
+    sentimentTrend,
+    engagementMetrics,
+    meetings,
+    behavioral,
+    communication,
+    riskIndicators,
+    loading,
+    error,
+  } = useEmployeeData(employeeId);
   const [showReport, setShowReport] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading employee profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive">
+        <p className="font-medium">Failed to load profile</p>
+        <p className="text-sm mt-1">{error.message}</p>
+      </div>
+    );
+  }
+
+  const risks = riskIndicators ?? [
+    { label: 'Burnout Risk', level: (employee.risk === 'High' ? 'High' : employee.risk === 'Medium' ? 'Medium' : 'Low') as 'Low' | 'Medium' | 'High', color: employee.risk === 'High' ? 'bg-red-500' : employee.risk === 'Medium' ? 'bg-orange-500' : 'bg-green-500' },
+    { label: 'Attrition Risk', level: employee.risk, color: employee.risk === 'High' ? 'bg-red-500' : employee.risk === 'Medium' ? 'bg-yellow-500' : 'bg-green-500' },
+    { label: 'Engagement Decline', level: (employee.sentiment < 70 ? 'High' : employee.sentiment < 80 ? 'Medium' : 'Low') as 'Low' | 'Medium' | 'High', color: employee.sentiment < 70 ? 'bg-red-500' : employee.sentiment < 80 ? 'bg-yellow-500' : 'bg-green-500' },
+    { label: 'Stress Signals', level: (employee.sentiment < 72 ? 'High' : 'Medium') as 'Low' | 'Medium' | 'High', color: employee.sentiment < 72 ? 'bg-red-500' : 'bg-orange-500' },
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -167,6 +168,7 @@ export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
               name={employee.name}
               avatarIndex={employee.avatarIndex}
               size="xl"
+              photoUrl={photoUrl}
             />
             <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
               <InfoField label="Employee ID" value={employee.employeeId} />
@@ -265,11 +267,11 @@ export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
           <Card className="p-6 shadow-md h-full">
             <h2 className="text-xl mb-4" style={{ fontWeight: 600 }}>Behavioral Intelligence</h2>
             <div className="space-y-4">
-              <BehaviorItem label="Communication Style" value="Direct and collaborative" color="bg-chart-1" />
-              <BehaviorItem label="Personality Traits" value="Analytical, detail-oriented, team player" color="bg-chart-2" />
-              <BehaviorItem label="Motivation Drivers" value="Technical challenges, career growth" color="bg-chart-3" />
-              <BehaviorItem label="Feedback Preference" value="Regular, constructive, data-driven" color="bg-chart-4" />
-              <BehaviorItem label="Collaboration Style" value="Proactive, mentorship-oriented" color="bg-chart-5" />
+              <BehaviorItem label="Communication Style" value={behavioral.communicationStyle} color="bg-chart-1" />
+              <BehaviorItem label="Personality Traits" value={behavioral.personalityTraits} color="bg-chart-2" />
+              <BehaviorItem label="Motivation Drivers" value={behavioral.motivationDrivers} color="bg-chart-3" />
+              <BehaviorItem label="Feedback Preference" value={behavioral.feedbackPreference} color="bg-chart-4" />
+              <BehaviorItem label="Collaboration Style" value={behavioral.collaborationStyle} color="bg-chart-5" />
             </div>
           </Card>
         </motion.div>
@@ -354,11 +356,11 @@ export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
             <MessageCircle className="w-5 h-5 text-primary" />
             <h2 className="text-xl" style={{ fontWeight: 600 }}>Communication Insights</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Top Topics</h3>
               <div className="flex flex-wrap gap-2">
-                {['Technical Architecture', 'Team Leadership', 'Code Reviews'].map((t, i) => (
+                {communication.topTopics.map((t, i) => (
                   <span key={i} className="px-3 py-1 bg-accent rounded-full text-sm">{t}</span>
                 ))}
               </div>
@@ -366,7 +368,7 @@ export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Concerns Raised</h3>
               <div className="flex flex-wrap gap-2">
-                {['Workload Balance', 'Project Deadlines'].map((t, i) => (
+                {communication.concernsRaised.map((t, i) => (
                   <span key={i} className="px-3 py-1 bg-destructive/10 text-destructive rounded-full text-sm">{t}</span>
                 ))}
               </div>
@@ -374,7 +376,7 @@ export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Career Interests</h3>
               <div className="flex flex-wrap gap-2">
-                {['Technical Lead Role', 'System Design', 'Mentoring'].map((t, i) => (
+                {communication.careerInterests.map((t, i) => (
                   <span key={i} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">{t}</span>
                 ))}
               </div>
@@ -382,7 +384,7 @@ export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Recent Topics</h3>
               <div className="flex flex-wrap gap-2">
-                {['Q1 Goals', 'Team Expansion', 'New Tech Stack'].map((t, i) => (
+                {communication.recentTopics.map((t, i) => (
                   <span key={i} className="px-3 py-1 bg-accent rounded-full text-sm">{t}</span>
                 ))}
               </div>
@@ -435,10 +437,9 @@ export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
             <h2 className="text-xl" style={{ fontWeight: 600 }}>Risk Indicators</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <RiskCard label="Burnout Risk" level={employee.risk === 'High' ? 'High' : employee.risk === 'Medium' ? 'Medium' : 'Low'} color={employee.risk === 'High' ? 'bg-red-500' : employee.risk === 'Medium' ? 'bg-orange-500' : 'bg-green-500'} />
-            <RiskCard label="Attrition Risk" level={employee.risk} color={employee.risk === 'High' ? 'bg-red-500' : employee.risk === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'} />
-            <RiskCard label="Engagement Decline" level={employee.sentiment < 70 ? 'High' : employee.sentiment < 80 ? 'Medium' : 'Low'} color={employee.sentiment < 70 ? 'bg-red-500' : employee.sentiment < 80 ? 'bg-yellow-500' : 'bg-green-500'} />
-            <RiskCard label="Stress Signals" level={employee.sentiment < 72 ? 'High' : 'Medium'} color={employee.sentiment < 72 ? 'bg-red-500' : 'bg-orange-500'} />
+            {risks.map((r, i) => (
+              <RiskCard key={i} label={r.label} level={r.level} color={r.color} />
+            ))}
           </div>
         </Card>
       </motion.div>

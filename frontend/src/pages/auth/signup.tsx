@@ -65,19 +65,9 @@ export default function SignUp() {
     }
 
     try {
-      // Include selected role in signup
       await signup(formData.name, formData.email, formData.password, formData.role as any);
-      
-      // Route based on role selection
-      const roleRoutes: Record<string, string> = {
-        'chro': '/',
-        'hr_partner': '/employees',
-        'talent_ops': '/workforce-insights',
-        'engagement_manager': '/engagement-analytics'
-      };
-      
-      const route = roleRoutes[formData.role] || '/';
-      router.push(route);
+      // Redirect is handled by _app.tsx based on user.role
+      router.push('/');
     } catch (err: any) {
       setError(err.message || 'Failed to create account');
     }

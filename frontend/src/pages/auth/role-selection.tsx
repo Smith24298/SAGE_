@@ -68,9 +68,18 @@ export default function RoleSelection() {
 
   const handleContinue = async () => {
     if (!selectedRole) return;
-
-    setRole(selectedRole);
-    router.push('/dashboard');
+    try {
+      await setRole(selectedRole);
+      const roleRoutes: Record<string, string> = {
+        chro: '/',
+        hr_partner: '/employees',
+        talent_ops: '/workforce-insights',
+        engagement_manager: '/engagement-analytics',
+      };
+      router.push(roleRoutes[selectedRole] ?? '/');
+    } catch (err) {
+      console.error('Failed to set role', err);
+    }
   };
 
   return (

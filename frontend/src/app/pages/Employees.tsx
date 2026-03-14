@@ -3,18 +3,30 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { employees } from "../data/employees";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
+import { useEmployeesList } from "@/hooks/useEmployeesList";
 
 export function Employees() {
   const [query, setQuery] = useState('');
+  const { employees: employeeList, loading, error } = useEmployeesList();
 
-  const filtered = employees.filter(
+  const filtered = employeeList.filter(
     (e) =>
       e.name.toLowerCase().includes(query.toLowerCase()) ||
       e.role.toLowerCase().includes(query.toLowerCase()) ||
       e.department.toLowerCase().includes(query.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-muted-foreground text-sm">Loading employees...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -22,6 +34,12 @@ export function Employees() {
         <h1 className="text-3xl" style={{ fontWeight: 600 }}>Employees</h1>
         <p className="text-muted-foreground mt-1">View and manage employee profiles</p>
       </div>
+
+      {error && (
+        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-sm">
+          Could not load from Firestore. Showing local data. {error.message}
+        </div>
+      )}
 
       <Card className="p-4">
         <div className="flex items-center gap-2 px-3 py-2 bg-input-background rounded-lg">
@@ -58,6 +76,7 @@ export function Employees() {
                       name={employee.name}
                       avatarIndex={employee.avatarIndex}
                       size="md"
+                      photoUrl={employee.photoUrl}
                     />
                   </motion.div>
 

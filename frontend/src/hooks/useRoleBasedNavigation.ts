@@ -1,13 +1,6 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '@/context/AuthContext';
-
-const roleRoutes: Record<string, string> = {
-  chro: '/dashboard', // CHRO sees main dashboard with executive insights
-  hr_partner: '/employees', // HR Partner sees employees
-  talent_ops: '/workforce-insights', // Talent Ops sees workforce insights
-  engagement_manager: '/engagement-analytics', // Engagement manager sees engagement
-};
+import { useAuth, USER_ROLE_ROUTES } from '@/context/AuthContext';
 
 export function useRoleBasedNavigation() {
   const router = useRouter();
@@ -16,19 +9,23 @@ export function useRoleBasedNavigation() {
   useEffect(() => {
     if (isLoading) return;
 
-    // If no user, redirect to sign in
     if (!user) {
       router.push('/auth/signin');
       return;
     }
 
-    // Get the role-specific dashboard route
-    const dashboardRoute = roleRoutes[user.role] || '/dashboard';
+    // No role yet -> role selection
+    if (user.role == null) {
+      if (!router.pathname.startsWith('/auth/role-selection')) {
+        router.push('/auth/role-selection');
+      }
+      return;
+    }
 
-    // If accessing auth pages while logged in
+    const dashboardRoute = USER_ROLE_ROUTES[user.role] ?? '/';
+
     if (router.pathname.startsWith('/auth/')) {
       router.push(dashboardRoute);
-      return;
     }
   }, [user, isLoading, router]);
 

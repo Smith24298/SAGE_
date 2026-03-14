@@ -33,8 +33,8 @@ export function Sidebar() {
   const currentPath = (router.asPath ?? "").split("?")[0];
   const { user } = useAuth();
   
-  // Default to CHRO view if role is missing (though route protection should prevent this)
-  const userRole = user?.role || "chro";
+  // Default to CHRO view if role is missing (route protection redirects to role-selection when role is null)
+  const userRole = user?.role ?? "chro";
   
   // Filter navigation items based on the user's role
   const visibleNavItems = allNavItems.filter(item => item.roles.includes(userRole));

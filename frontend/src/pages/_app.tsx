@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import '@/styles/index.css';
 
 import { Layout } from '@/app/components/Layout';
-import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { AuthProvider, useAuth, USER_ROLE_ROUTES } from '@/context/AuthContext';
 
 // Auth pages that should NOT have the Layout wrapper
 const authPages = ['/auth/signin', '/auth/signup', '/auth/role-selection', '/auth/forgot-password', '/test-login'];
@@ -24,19 +24,13 @@ function AppContent({ Component, pageProps }: AppProps) {
 
     const isAuthPage = authPages.includes(router.pathname);
 
-    // Redirect logic
+    // Redirect logic: not logged in -> signin; logged in but no role -> role-selection; has role on auth page -> dashboard
     if (!user && !isAuthPage) {
-      // User not logged in, redirect to signin (except on auth pages)
       router.push('/auth/signin');
-    } else if (user && isAuthPage && router.pathname !== '/test-login') {
-      // User logged in but on auth pages (except test-login), redirect to role-specific dashboard
-      const roleRoutes: Record<string, string> = {
-        'chro': '/',
-        'hr_partner': '/employees',
-        'talent_ops': '/workforce-insights',
-        'engagement_manager': '/engagement-analytics'
-      };
-      router.push(roleRoutes[user.role] || '/');
+    } else if (user?.role == null && !isAuthPage && router.pathname !== '/auth/role-selection') {
+      router.push('/auth/role-selection');
+    } else if (user?.role != null && isAuthPage && router.pathname !== '/test-login') {
+      router.push(USER_ROLE_ROUTES[user.role] || '/');
     }
   }, [user, isLoading, router.pathname, mounted]);
 
