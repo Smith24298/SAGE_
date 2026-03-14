@@ -282,7 +282,7 @@ export function ChatbotButton() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-40 w-96 h-[500px] bg-card rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col"
+            className="fixed bottom-24 right-6 z-40 w-[400px] h-[510px] bg-card rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col"
           >
             {/* Header */}
             <div className="bg-primary text-primary-foreground p-4 shrink-0">

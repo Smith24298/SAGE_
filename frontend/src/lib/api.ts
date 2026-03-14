@@ -472,6 +472,27 @@ export async function createCalendarEvent(
   });
 }
 
+export async function completeCalendarEvent(eventId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/calendar/events/${eventId}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Complete event API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.status === 'success';
+  } catch (error) {
+    console.error('completeCalendarEvent error:', error);
+    return false;
+  }
+}
+
 export interface EmployeeNotificationTarget {
   id: string;
   employeeId: string;

@@ -26,6 +26,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { motion, useInView } from "motion/react";
+import { useAuth } from "@/context/AuthContext";
 import { useRef, useEffect, useState } from "react";
 import {
   getCalendarEvents,
@@ -421,6 +422,9 @@ function StrategicInsights({
 }
 
 export function Dashboard() {
+  const { user } = useAuth();
+  const isEngagementManager = user?.role === "engagement_manager";
+
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
 
   useEffect(() => {
@@ -585,12 +589,23 @@ export function Dashboard() {
                 <Pie
                   data={attritionPrediction}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={75}
                   paddingAngle={5}
                   dataKey="value"
-                  label
+                  label={({ cx, cy, midAngle, innerRadius, outerRadius, value, name }) => {
+                    const RADIAN = Math.PI / 180;
+                    const radius = outerRadius + 25;
+                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                    return (
+                      <text x={x} y={y} fill="#666" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-[10px] font-medium">
+                        {`${name} (${value}%)`}
+                      </text>
+                    );
+                  }}
+                  labelLine={{ stroke: '#999', strokeWidth: 1 }}
                 >
                   {attritionPrediction.map((entry, index) => (
                     <Cell
@@ -600,7 +615,7 @@ export function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend />
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: '20px' }}/>
               </PieChart>
             </ResponsiveContainer>
           </Card>
@@ -609,8 +624,8 @@ export function Dashboard() {
         {/* Department Engagement Comparison */}
         <DeptStressBarChart departmentData={departmentData} />
 
-        {/* Meeting Activity Insights */}
-        <MeetingInsights />
+        {/* Meeting Activity Insights - Only for Engagement Manager */}
+        {isEngagementManager && <MeetingInsights />}
 
         {/* Department Sentiment Comparison */}
         <motion.div
