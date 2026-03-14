@@ -70,8 +70,8 @@ export function Navbar() {
           <FloatingParticles />
           {mounted && (
             <div className="flex items-center gap-3">
-              {/* Role Badge */}
-              {user && (
+              {/* Role Badge - only when role is set (role-selection page has no role yet) */}
+              {user?.role != null && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -83,7 +83,7 @@ export function Navbar() {
                     className="text-xs font-semibold tracking-wide text-primary"
                     style={{ letterSpacing: '0.04em' }}
                   >
-                    {roleLabels[user.role] || user.role}
+                    {roleLabels[user.role]}
                   </span>
                 </motion.div>
               )}

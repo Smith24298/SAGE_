@@ -1,5 +1,15 @@
-from dotenv import load_dotenv
-load_dotenv()
+import os
+
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables regardless of current working directory.
+# Prefer `backend/.env` (this repo's backend config), then fall back to any `.env`
+# discoverable via python-dotenv's upward search.
+_backend_env = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(_backend_env):
+    load_dotenv(dotenv_path=_backend_env, override=False)
+else:
+    load_dotenv(find_dotenv(usecwd=True), override=False)
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,9 +25,6 @@ from backend.ob_engine.intelligence_storage import (
     update_digital_twin_with_intelligence,
     get_employee_behavioral_summary
 )
-import os
-
-load_dotenv()
 
 app = FastAPI(title="AI HR Digital Twin Intelligence System")
 

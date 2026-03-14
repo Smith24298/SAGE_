@@ -45,19 +45,8 @@ export default function SignIn() {
 
     try {
       await login(email, password);
-      // Determine what role they just logged in as
-      const usersList = JSON.parse(localStorage.getItem('mock_users_db') || '[]');
-      const existingUser = usersList.find((u: any) => u.email === email && u.password === password);
-      
-      const roleRoutes: Record<string, string> = {
-        'chro': '/',
-        'hr_partner': '/employees',
-        'talent_ops': '/workforce-insights',
-        'engagement_manager': '/engagement-analytics'
-      };
-      
-      const route = existingUser ? (roleRoutes[existingUser.role] || '/') : '/';
-      router.push(route);
+      // Redirect is handled by _app.tsx based on user.role (or to role-selection if no role)
+      router.push('/');
     } catch (err: any) {
       setError(err.message || 'Invalid credentials');
     }

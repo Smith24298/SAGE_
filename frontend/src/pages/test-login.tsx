@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, type UserRole } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { Crown, Users, Briefcase, Heart, LogOut } from 'lucide-react';
@@ -50,14 +50,9 @@ export default function TestLogin() {
   ];
 
   const handleRoleSelect = async (roleId: string) => {
-    setRole(roleId as any);
+    await setRole(roleId as UserRole);
     const selectedRole = roles.find(r => r.id === roleId);
-    if (selectedRole) {
-      // Small delay to ensure state updates
-      setTimeout(() => {
-        router.push(selectedRole.route);
-      }, 100);
-    }
+    if (selectedRole) router.push(selectedRole.route);
   };
 
   return (
@@ -74,7 +69,7 @@ export default function TestLogin() {
           <p className="text-slate-400 text-lg">Select a Role to Test</p>
           {user && (
             <p className="text-sm text-emerald-400 mt-2">
-              Logged in as: {user.name} ({user.role})
+              Logged in as: {user.name} ({user.role ?? 'No role'})
             </p>
           )}
         </motion.div>

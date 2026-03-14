@@ -10,3 +10,4 @@ pydantic
 langchain-groq
 python-multipart
 certifi
+firebase-admin

@@ -1,14 +1,30 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  type User as FirebaseUser,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from '@/lib/firebase';
 
 export type UserRole = 'chro' | 'hr_partner' | 'talent_ops' | 'engagement_manager';
+
+export const USER_ROLE_ROUTES: Record<UserRole, string> = {
+  chro: '/',
+  hr_partner: '/employees',
+  talent_ops: '/workforce-insights',
+  engagement_manager: '/engagement-analytics',
+};
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: UserRole | null;
 }
 
 interface AuthContextType {
@@ -17,105 +33,150 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => void;
-  setRole: (role: UserRole) => void;
+  setRole: (role: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const COLLECTION_USERS = 'users';
+
+async function getUserProfile(
+  uid: string,
+  email: string
+): Promise<{ name: string; role: UserRole | null }> {
+  const db = getFirebaseDb();
+  if (!db) return { name: '', role: null };
+  const snap = await getDoc(doc(db, COLLECTION_USERS, uid));
+  if (!snap.exists()) return { name: '', role: null };
+  const data = snap.data();
+  return {
+    name: data.name ?? '',
+    role: (data.role as UserRole) ?? null,
+  };
+}
+
+function mapFirebaseUser(fbUser: FirebaseUser, profile: { name: string; role: UserRole | null }): User {
+  return {
+    id: fbUser.uid,
+    name: profile.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+    email: fbUser.email ?? '',
+    role: profile.role,
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize from localStorage on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (error) {
-        localStorage.removeItem('user');
-      }
+    if (!isFirebaseConfigured()) {
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setIsLoading(false);
+      return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (!fbUser) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const profile = await getUserProfile(fbUser.uid, fbUser.email ?? '');
+        setUser(mapFirebaseUser(fbUser, profile));
+      } catch (err) {
+        setUser(
+          mapFirebaseUser(fbUser, { name: fbUser.displayName ?? '', role: null })
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
+    const auth = getFirebaseAuth();
+    if (!auth) throw new Error('Firebase is not configured.');
     setIsLoading(true);
     try {
-      // Simulate API call - replace with actual backend call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Look up user from mock database in localStorage
-      const usersList = JSON.parse(localStorage.getItem('mock_users_db') || '[]');
-      const existingUser = usersList.find((u: any) => u.email === email && u.password === password);
-      
-      if (!existingUser) {
-        throw new Error('Invalid email or password. Please verify your account exists.');
-      }
-      
-      const mockUser: User = {
-        id: existingUser.id,
-        name: existingUser.name,
-        email: existingUser.email,
-        role: existingUser.role, 
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const profile = await getUserProfile(cred.user.uid, cred.user.email ?? '');
+      setUser(mapFirebaseUser(cred.user, profile));
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'code' in err
+          ? (err as { code: string }).code === 'auth/invalid-credential' ||
+            (err as { code: string }).code === 'auth/user-not-found'
+            ? 'Invalid email or password.'
+            : (err as { message?: string }).message ?? 'Sign in failed.'
+          : 'Sign in failed.';
+      throw new Error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signup = async (name: string, email: string, password: string, role: UserRole) => {
+  const signup = async (
+    name: string,
+    email: string,
+    password: string,
+    role: UserRole
+  ) => {
+    const auth = getFirebaseAuth();
+    const db = getFirebaseDb();
+    if (!auth) throw new Error('Firebase is not configured.');
     setIsLoading(true);
     try {
-      // Simulate API call - replace with actual backend call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const usersList = JSON.parse(localStorage.getItem('mock_users_db') || '[]');
-      if (usersList.some((u: any) => u.email === email)) {
-        throw new Error('An account with this email already exists.');
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = cred.user.uid;
+      if (db) {
+        await setDoc(doc(db, COLLECTION_USERS, uid), {
+          name,
+          email,
+          role,
+          createdAt: new Date().toISOString(),
+        });
       }
-
-      const newUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        name,
-        email,
-        role,
-      };
-      
-      // Save credentials to mock database so login can find it later
-      usersList.push({ ...newUser, password });
-      localStorage.setItem('mock_users_db', JSON.stringify(usersList));
-      
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
+      setUser(
+        mapFirebaseUser(cred.user, { name, role })
+      );
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'code' in err
+          ? (err as { code: string }).code === 'auth/email-already-in-use'
+            ? 'An account with this email already exists.'
+            : (err as { message?: string }).message ?? 'Sign up failed.'
+          : 'Sign up failed.';
+      throw new Error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = () => {
+    const auth = getFirebaseAuth();
+    if (auth) signOut(auth);
     setUser(null);
-    localStorage.removeItem('user');
   };
 
-  const setRole = (role: UserRole) => {
+  const setRole = async (role: UserRole) => {
+    const auth = getFirebaseAuth();
+    const db = getFirebaseDb();
+    const uid = user?.id ?? auth?.currentUser?.uid;
+    if (db && uid) {
+      await updateDoc(doc(db, COLLECTION_USERS, uid), { role });
+    }
     if (user) {
-      const updatedUser = { ...user, role };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-    } else {
-      // Create a mock user if none exists (for testing)
-      const mockUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: 'Test User',
-        email: 'test@sage-platform.com',
-        role,
-      };
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      setUser({ ...user, role });
+    } else if (auth?.currentUser) {
+      const profile = await getUserProfile(auth.currentUser.uid, auth.currentUser.email ?? '');
+      setUser(
+        mapFirebaseUser(auth.currentUser, { ...profile, role })
+      );
     }
   };
 
