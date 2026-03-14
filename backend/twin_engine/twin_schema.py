@@ -14,3 +14,4 @@ class EmployeeTwin(BaseModel):
     burnout_risk: float = 0.0
     career_goals: List[str] = []
     interaction_memory: List[str] = []
+    ml_metrics: Dict = Field(default_factory=dict)

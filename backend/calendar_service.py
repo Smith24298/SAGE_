@@ -1,6 +1,7 @@
 import datetime
 import os
-from typing import Optional
+import re
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from google.oauth2 import service_account
@@ -8,6 +9,7 @@ from googleapiclient.discovery import build
 from pydantic import BaseModel, Field
 
 from backend.database import db
+from backend.notifications.email_service import send_event_notifications
 
 router = APIRouter()
 
@@ -18,6 +20,9 @@ DEFAULT_SERVICE_ACCOUNT_FILE = os.path.abspath(
 DEFAULT_TIMEZONE = os.getenv("CALENDAR_TIMEZONE", "Asia/Kolkata")
 CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 EVENTS_COLLECTION = "dashboard_events"
+PROFILES_COLLECTION = "employee_profiles"
+ROLE_ALLOWED_TO_NOTIFY = {"engagement_manager"}
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _resolve_credentials_path(path: Optional[str]) -> str:
@@ -54,12 +59,185 @@ class EventRequest(BaseModel):
     session_id: Optional[str] = None
     sync_to_google: bool = True
     duration_minutes: int = Field(default=60, ge=15, le=720)
+    notify_employees: bool = False
+    recipient_emails: list[str] = Field(default_factory=list)
+    recipient_employee_ids: list[str] = Field(default_factory=list)
+    created_by_role: Optional[str] = None
 
 
 def _events_collection():
     if db is None:
         return None
     return db[EVENTS_COLLECTION]
+
+
+def _profiles_collection():
+    if db is None:
+        return None
+    return db[PROFILES_COLLECTION]
+
+
+def _normalize_role(role: Optional[str]) -> str:
+    return str(role or "").strip().lower()
+
+
+def _is_valid_email(value: str) -> bool:
+    return bool(EMAIL_PATTERN.match(str(value or "").strip()))
+
+
+def _clean_email(value: Optional[str]) -> Optional[str]:
+    email = str(value or "").strip().lower()
+    if not email:
+        return None
+    if not _is_valid_email(email):
+        return None
+    return email
+
+
+def _extract_profile_email(profile: dict[str, Any]) -> Optional[str]:
+    for key in (
+        "email",
+        "email_id",
+        "emailId",
+        "work_email",
+        "workEmail",
+        "official_email",
+        "officialEmail",
+    ):
+        candidate = _clean_email(profile.get(key))
+        if candidate:
+            return candidate
+    return None
+
+
+def _find_employee_profile_by_ref(employee_ref: str) -> Optional[dict[str, Any]]:
+    collection = _profiles_collection()
+    if collection is None:
+        return None
+
+    ref = str(employee_ref or "").strip()
+    if not ref:
+        return None
+
+    query = {
+        "$or": [
+            {"id": ref},
+            {"employeeId": ref},
+            {"name": {"$regex": f"^{re.escape(ref)}$", "$options": "i"}},
+        ]
+    }
+    return collection.find_one(query)
+
+
+def _append_all_mongo_employee_recipients(
+    recipients_by_email: dict[str, dict[str, str]],
+    warnings: list[str],
+) -> None:
+    collection = _profiles_collection()
+    if collection is None:
+        warnings.append("Could not load employee profiles from MongoDB for auto-notification.")
+        return
+
+    total_profiles = 0
+    added_recipients = 0
+    missing_email_profiles = 0
+
+    cursor = collection.find(
+        {},
+        {
+            "name": 1,
+            "email": 1,
+            "email_id": 1,
+            "emailId": 1,
+            "work_email": 1,
+            "workEmail": 1,
+            "official_email": 1,
+            "officialEmail": 1,
+        },
+    )
+
+    for profile in cursor:
+        total_profiles += 1
+        email = _extract_profile_email(profile)
+        if not email:
+            missing_email_profiles += 1
+            continue
+
+        already_exists = email in recipients_by_email
+        recipients_by_email[email] = {
+            "email": email,
+            "name": str(profile.get("name") or recipients_by_email.get(email, {}).get("name", "")).strip(),
+        }
+        if not already_exists:
+            added_recipients += 1
+
+    if total_profiles == 0:
+        warnings.append("No employee profiles found in MongoDB.")
+        return
+
+    if added_recipients == 0 and len(recipients_by_email) == 0:
+        warnings.append("No employee emails found in MongoDB profiles.")
+    elif added_recipients > 0:
+        warnings.append(f"Auto-selected {added_recipients} employee recipient(s) from MongoDB.")
+
+    if missing_email_profiles > 0:
+        warnings.append(
+            f"{missing_email_profiles} employee profile(s) skipped due to missing email in MongoDB."
+        )
+
+
+def _resolve_notification_recipients(request: EventRequest) -> tuple[list[dict[str, str]], list[str]]:
+    recipients_by_email: dict[str, dict[str, str]] = {}
+    warnings: list[str] = []
+    explicit_recipient_input = bool(
+        request.recipient_emails
+        or request.recipient_employee_ids
+        or _clean_email(request.attendee_email)
+    )
+
+    for raw_email in request.recipient_emails:
+        clean = _clean_email(raw_email)
+        if not clean:
+            text = str(raw_email or "").strip()
+            if text:
+                warnings.append(f"Ignored invalid email: {text}")
+            continue
+        recipients_by_email[clean] = {
+            "email": clean,
+            "name": "",
+        }
+
+    attendee_email = _clean_email(request.attendee_email)
+    if attendee_email:
+        recipients_by_email[attendee_email] = {
+            "email": attendee_email,
+            "name": recipients_by_email.get(attendee_email, {}).get("name", ""),
+        }
+
+    for ref in request.recipient_employee_ids:
+        profile = _find_employee_profile_by_ref(ref)
+        if not profile:
+            warnings.append(f"Employee not found for reference: {ref}")
+            continue
+
+        email = _extract_profile_email(profile)
+        if not email:
+            display_name = str(profile.get("name") or ref)
+            warnings.append(f"No email found for employee: {display_name}")
+            continue
+
+        recipients_by_email[email] = {
+            "email": email,
+            "name": str(profile.get("name") or "").strip(),
+        }
+
+    # Default behavior for "Add Event" from EM: if no explicit recipients were
+    # selected, target all employees with valid emails from MongoDB profiles.
+    if not explicit_recipient_input:
+        _append_all_mongo_employee_recipients(recipients_by_email, warnings)
+
+    recipients = list(recipients_by_email.values())
+    return recipients, warnings
 
 
 def _parse_event_datetime(date_text: str, time_text: str) -> datetime.datetime:
@@ -170,6 +348,10 @@ def _serialize_event(doc: dict) -> dict:
         "status": doc.get("status", "upcoming"),
         "event_link": doc.get("event_link"),
         "google_sync_error": doc.get("google_sync_error"),
+        "notification_requested": bool(doc.get("notification_requested", False)),
+        "notification_role": doc.get("notification_role"),
+        "notification_recipients": doc.get("notification_recipients") or [],
+        "email_notification": doc.get("email_notification"),
         "created_at": created_at_str,
     }
 
@@ -185,6 +367,9 @@ async def create_event(request: EventRequest):
 
     event_link = None
     google_sync_error = None
+    email_notification = None
+    notification_recipients: list[dict[str, str]] = []
+    notification_role = _normalize_role(request.created_by_role)
     if request.sync_to_google:
         try:
             event_link = _sync_to_google(
@@ -198,6 +383,50 @@ async def create_event(request: EventRequest):
         except Exception as exc:
             # Persist the dashboard event even if Google sync fails.
             google_sync_error = _friendly_google_sync_error(exc)
+
+    if request.notify_employees:
+        if notification_role not in ROLE_ALLOWED_TO_NOTIFY:
+            email_notification = {
+                "status": "skipped",
+                "reason": "Only engagement managers can trigger event notification emails.",
+                "requested": True,
+                "configured": False,
+                "total": 0,
+                "sent_count": 0,
+                "failed_count": 0,
+                "results": [],
+            }
+        else:
+            notification_recipients, recipient_warnings = _resolve_notification_recipients(request)
+
+            try:
+                email_notification = send_event_notifications(
+                    event_doc={
+                        "title": request.title,
+                        "type": request.type,
+                        "date": start_dt.date().isoformat(),
+                        "time": start_dt.strftime("%H:%M"),
+                        "location": request.location,
+                        "description": request.description,
+                        "attendees": max(0, int(request.attendees or 0)),
+                        "event_link": event_link,
+                    },
+                    recipients=notification_recipients,
+                )
+            except Exception as exc:
+                email_notification = {
+                    "status": "failed",
+                    "reason": str(exc),
+                    "requested": True,
+                    "configured": False,
+                    "total": len(notification_recipients),
+                    "sent_count": 0,
+                    "failed_count": len(notification_recipients),
+                    "results": [],
+                }
+
+            if recipient_warnings:
+                email_notification["recipient_warnings"] = recipient_warnings
 
     now_utc = datetime.datetime.utcnow()
     event_doc = {
@@ -214,6 +443,10 @@ async def create_event(request: EventRequest):
         "event_link": event_link,
         "google_sync_error": google_sync_error,
         "google_synced": bool(event_link),
+        "notification_requested": bool(request.notify_employees),
+        "notification_role": notification_role,
+        "notification_recipients": notification_recipients,
+        "email_notification": email_notification,
         "created_at": now_utc,
         "updated_at": now_utc,
     }
@@ -229,6 +462,7 @@ async def create_event(request: EventRequest):
         "event": _serialize_event(saved),
         "event_link": event_link,
         "google_sync_error": google_sync_error,
+        "email_notification": email_notification,
     }
 
 

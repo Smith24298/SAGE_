@@ -311,6 +311,30 @@ export async function debugEmployeeSummary(employeeName: string): Promise<void> 
 
 export type DashboardEventStatus = 'upcoming' | 'past';
 
+export interface EventNotificationRecipient {
+  email: string;
+  name?: string;
+}
+
+export interface EventNotificationDeliveryResult {
+  email: string;
+  name?: string;
+  status: 'sent' | 'failed';
+  error?: string;
+}
+
+export interface EventEmailNotification {
+  status: 'success' | 'partial' | 'failed' | 'skipped';
+  reason?: string;
+  requested: boolean;
+  configured: boolean;
+  total: number;
+  sent_count: number;
+  failed_count: number;
+  recipient_warnings?: string[];
+  results: EventNotificationDeliveryResult[];
+}
+
 export interface CalendarEventRecord {
   id: string;
   title: string;
@@ -325,6 +349,10 @@ export interface CalendarEventRecord {
   status: DashboardEventStatus;
   event_link?: string | null;
   google_sync_error?: string | null;
+  notification_requested?: boolean;
+  notification_role?: string | null;
+  notification_recipients?: EventNotificationRecipient[];
+  email_notification?: EventEmailNotification | null;
   created_at?: string;
 }
 
@@ -340,6 +368,10 @@ export interface CreateCalendarEventInput {
   session_id?: string;
   sync_to_google?: boolean;
   duration_minutes?: number;
+  notify_employees?: boolean;
+  recipient_emails?: string[];
+  recipient_employee_ids?: string[];
+  created_by_role?: string | null;
 }
 
 function toCalendarEventRecord(raw: Record<string, any>): CalendarEventRecord {
@@ -360,6 +392,12 @@ function toCalendarEventRecord(raw: Record<string, any>): CalendarEventRecord {
     status: raw?.status === 'past' ? 'past' : 'upcoming',
     event_link: raw?.event_link ?? null,
     google_sync_error: raw?.google_sync_error ?? null,
+    notification_requested: Boolean(raw?.notification_requested ?? false),
+    notification_role: raw?.notification_role ?? null,
+    notification_recipients: Array.isArray(raw?.notification_recipients)
+      ? raw.notification_recipients
+      : [],
+    email_notification: raw?.email_notification ?? null,
     created_at: raw?.created_at,
   };
 }
@@ -430,7 +468,42 @@ export async function createCalendarEvent(
     ...rawEvent,
     event_link: rawEvent?.event_link ?? data?.event_link,
     google_sync_error: rawEvent?.google_sync_error ?? data?.google_sync_error,
+    email_notification: rawEvent?.email_notification ?? data?.email_notification ?? null,
   });
+}
+
+export interface EmployeeNotificationTarget {
+  id: string;
+  employeeId: string;
+  name: string;
+  email: string | null;
+  department: string;
+}
+
+export async function getEmployeeNotificationTargets(limit: number = 500): Promise<EmployeeNotificationTarget[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/employees?limit=${Math.max(1, limit)}`);
+    if (!response.ok) {
+      throw new Error(`Employees API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const items = Array.isArray(data?.employees) ? data.employees : [];
+
+    return items.map((item: Record<string, any>) => {
+      const id = String(item?.id ?? item?.employeeId ?? '');
+      return {
+        id,
+        employeeId: String(item?.employeeId ?? id),
+        name: String(item?.name ?? ''),
+        email: item?.email ? String(item.email) : null,
+        department: String(item?.department ?? ''),
+      };
+    });
+  } catch (error) {
+    console.error('getEmployeeNotificationTargets error:', error);
+    return [];
+  }
 }
 
 export interface EngagementAnalyticsKpis {

@@ -18,7 +18,9 @@ import {
   getCalendarEvents,
   getCurrentSessionId,
   type CalendarEventRecord,
+  type EventEmailNotification,
 } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 type EventType = 'Pitch' | 'Townhall' | 'Fun';
 
@@ -89,6 +91,33 @@ function toFriendlyGoogleSyncError(errorText: string): string {
   return text;
 }
 
+function toFriendlyEmailNotificationMessage(notification: EventEmailNotification | null | undefined): string {
+  if (!notification || !notification.requested) {
+    return '';
+  }
+
+  const warnings = Array.isArray(notification.recipient_warnings)
+    ? notification.recipient_warnings.filter(Boolean)
+    : [];
+
+  let summary = '';
+  if (notification.status === 'success') {
+    summary = `Event email sent to ${notification.sent_count} recipient(s).`;
+  } else if (notification.status === 'partial') {
+    summary = `Event email partially sent: ${notification.sent_count}/${notification.total} succeeded and ${notification.failed_count} failed.`;
+  } else if (notification.status === 'failed') {
+    summary = `Event email failed for all recipients. ${notification.reason || ''}`.trim();
+  } else {
+    summary = `Event email skipped. ${notification.reason || ''}`.trim();
+  }
+
+  if (warnings.length > 0) {
+    summary += `\nWarnings: ${warnings.join(' | ')}`;
+  }
+
+  return summary;
+}
+
 function toEvent(record: CalendarEventRecord): Event {
   return {
     id: record.id,
@@ -104,12 +133,15 @@ function toEvent(record: CalendarEventRecord): Event {
 }
 
 export function Events() {
+  const { user } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [syncToGoogle, setSyncToGoogle] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionId, setSessionId] = useState('');
+
+  const isEngagementManager = user?.role === 'engagement_manager';
 
   // Form State
   const [formData, setFormData] = useState({
@@ -164,6 +196,10 @@ export function Events() {
         attendees: 0,
         session_id: activeSessionId,
         sync_to_google: syncToGoogle,
+        notify_employees: isEngagementManager,
+        recipient_employee_ids: [],
+        recipient_emails: [],
+        created_by_role: user?.role ?? null,
       });
 
       const createdEvent = toEvent(created);
@@ -179,10 +215,23 @@ export function Events() {
         description: '',
       });
 
+      const postCreateMessages: string[] = [];
+
       if (syncToGoogle && created.event_link) {
         window.open(created.event_link, '_blank', 'noopener,noreferrer');
       } else if (syncToGoogle && created.google_sync_error) {
-        alert(`Event saved to dashboard and MongoDB, but Google Calendar sync failed: ${toFriendlyGoogleSyncError(created.google_sync_error)}`);
+        postCreateMessages.push(
+          `Event saved, but Google Calendar sync failed: ${toFriendlyGoogleSyncError(created.google_sync_error)}`,
+        );
+      }
+
+      const emailMessage = toFriendlyEmailNotificationMessage(created.email_notification);
+      if (emailMessage) {
+        postCreateMessages.push(emailMessage);
+      }
+
+      if (postCreateMessages.length > 0) {
+        alert(postCreateMessages.join('\n\n'));
       }
     } catch (error) {
       console.error('Failed to create event:', error);
@@ -447,6 +496,15 @@ export function Events() {
                     placeholder="What is this event about?"
                   />
                 </div>
+
+                {isEngagementManager && (
+                  <div className="rounded-lg border border-border p-4 bg-background/50">
+                    <p className="text-sm font-medium text-foreground">Email Employees</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Invitation emails will be sent automatically to all employees with valid emails in MongoDB when this event is created.
+                    </p>
+                  </div>
+                )}
 
                 <div className="pt-4 flex items-center justify-between border-t border-border mt-6">
                   <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">

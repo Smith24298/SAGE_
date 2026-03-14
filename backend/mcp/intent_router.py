@@ -1,4 +1,4 @@
-"""Intent routing between casual/general chat and meeting/HR intelligence."""
+"""Intent routing for HR/OB-specialized chat and navigation."""
 
 from __future__ import annotations
 
@@ -6,14 +6,13 @@ import json
 import time
 from dataclasses import dataclass
 
-from backend.ai.general_chat import general_chat
 from backend.ai.llm import llm
 from backend.database import employees
 from backend.mcp.navigation_resolver import navigation_reply_text, resolve_navigation
 from backend.rag.hr_assistant import hr_chat
 
 MEETING_HR_MODE = "meeting_hr"
-CASUAL_GENERAL_MODE = "casual_general"
+OUT_OF_SCOPE_MODE = "out_of_scope"
 NAVIGATION_MODE = "navigation"
 
 HR_KEYWORDS = {
@@ -83,6 +82,16 @@ CASUAL_HINTS = {
     "football",
     "cricket",
 }
+
+OUT_OF_SCOPE_CAPABILITIES_REPLY = (
+    "I am an HR/OB-focused assistant and cannot help with that topic.\n\n"
+    "I can help with:\n"
+    "- Meeting prep using employee context\n"
+    "- Employee behavioral insights from digital twins\n"
+    "- Engagement, burnout, and attrition risk analysis\n"
+    "- Actionable HR recommendations from database-backed signals\n\n"
+    "Ask a relevant HR question, for example: 'Prepare me for a 1:1 with Emily Rodriguez'."
+)
 
 _EMPLOYEE_NAME_CACHE: dict[str, object] = {
     "expires_at": 0.0,
@@ -166,10 +175,10 @@ def _llm_classify(question: str) -> IntentDecision:
 Classify this user message into exactly one mode:
 - "navigation": user wants to open/go to a product page or profile.
 - "meeting_hr": about meetings, employees, HR analytics, transcripts, workplace behavior, engagement, management, digital twins.
-- "casual_general": general knowledge or casual conversation not tied to HR/workplace meeting data.
+- "out_of_scope": non-HR requests (general knowledge, entertainment, weather, coding, etc.)
 
 Return ONLY strict JSON:
-{{"mode":"navigation|meeting_hr|casual_general","confidence":0.0,"reason":"short reason"}}
+{{"mode":"navigation|meeting_hr|out_of_scope","confidence":0.0,"reason":"short reason"}}
 
 Message:
 {question}
@@ -181,8 +190,8 @@ Message:
         data = json.loads(_strip_code_fence(str(raw)))
 
         mode = str(data.get("mode", "")).strip().lower()
-        if mode not in {NAVIGATION_MODE, MEETING_HR_MODE, CASUAL_GENERAL_MODE}:
-            mode = CASUAL_GENERAL_MODE
+        if mode not in {NAVIGATION_MODE, MEETING_HR_MODE, OUT_OF_SCOPE_MODE}:
+            mode = OUT_OF_SCOPE_MODE
 
         confidence = float(data.get("confidence", 0.6))
         reason = str(data.get("reason", "LLM classified this message."))
@@ -206,9 +215,9 @@ def classify_intent(question: str) -> IntentDecision:
     text = _normalize(question)
     if not text:
         return IntentDecision(
-            mode=CASUAL_GENERAL_MODE,
+            mode=OUT_OF_SCOPE_MODE,
             confidence=0.98,
-            reason="Empty question defaults to casual/general mode.",
+            reason="Empty question routed to capability guidance.",
             source="heuristic",
         )
 
@@ -270,9 +279,9 @@ def classify_intent(question: str) -> IntentDecision:
 
     if casual_hits and not hr_hits:
         return IntentDecision(
-            mode=CASUAL_GENERAL_MODE,
+            mode=OUT_OF_SCOPE_MODE,
             confidence=min(0.94, 0.68 + 0.08 * len(casual_hits)),
-            reason=f"General-topic hints detected: {', '.join(casual_hits[:4])}",
+            reason=f"Out-of-scope hints detected: {', '.join(casual_hits[:4])}",
             source="heuristic",
         )
 
@@ -281,7 +290,7 @@ def classify_intent(question: str) -> IntentDecision:
 
     # If model is unsure about casual mode, prefer HR path so Mongo-backed context is available.
     if (
-        decision.mode == CASUAL_GENERAL_MODE
+        decision.mode == OUT_OF_SCOPE_MODE
         and decision.confidence < 0.78
         and not casual_hits
     ):
@@ -289,7 +298,7 @@ def classify_intent(question: str) -> IntentDecision:
             mode=MEETING_HR_MODE,
             confidence=0.7,
             reason=(
-                "Ambiguous query with low-confidence casual classification; "
+                "Ambiguous query with low-confidence out-of-scope classification; "
                 "routing to HR intelligence for personalized context."
             ),
             source="hybrid-fallback",
@@ -319,7 +328,7 @@ def route_user_message(question: str, concise: bool = True) -> dict:
     if decision.mode == MEETING_HR_MODE:
         answer = hr_chat(question, concise=concise)
     else:
-        answer = general_chat(question, concise=concise)
+        answer = OUT_OF_SCOPE_CAPABILITIES_REPLY
 
     return {
         "response": answer,

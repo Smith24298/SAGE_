@@ -5,6 +5,10 @@ from backend.ob_engine.herzberg import herzberg_analysis
 from backend.ob_engine.theory_xy import detect_management_style
 from backend.ob_engine.equity import check_equity_concerns
 from backend.twin_engine.twin_updater import update_digital_twin
+from backend.ob_engine.ml_metrics import (
+    build_speaker_ml_metrics,
+    estimate_meeting_duration_minutes,
+)
 from backend.ob_engine.behavioral_analyzer import analyze_behavioral_intelligence, analyze_engagement_intelligence
 from backend.ob_engine.intelligence_storage import update_digital_twin_with_intelligence
 
@@ -66,12 +70,16 @@ def process_meeting(text: str, include_behavioral_analysis: bool = True):
     
     # 2. Group statements by speaker
     speaker_statements = {}
+    all_messages = []
     for conv in conversations:
         speaker = conv["speaker"]
         msg = conv["message"]
+        all_messages.append(msg)
         if speaker not in speaker_statements:
             speaker_statements[speaker] = []
         speaker_statements[speaker].append(msg)
+
+    meeting_duration_minutes = estimate_meeting_duration_minutes(all_messages)
         
     # 3. Analyze each employee
     results = {}
@@ -98,9 +106,22 @@ def process_meeting(text: str, include_behavioral_analysis: bool = True):
             "theory_xy": theory_xy,
             "equity": equity
         }
+
+        ml_metrics = build_speaker_ml_metrics(
+            speaker_messages=messages,
+            participant_count=max(1, num_speakers),
+            meeting_duration_minutes=meeting_duration_minutes,
+            full_meeting_text=text,
+        )
         
         # Update Digital Twin
-        twin_data = update_digital_twin(speaker, insights, ob_results, combined_text)
+        twin_data = update_digital_twin(
+            speaker,
+            insights,
+            ob_results,
+            combined_text,
+            ml_metrics=ml_metrics,
+        )
         
         # Optionally perform detailed behavioral and engagement analysis
         engagement_level = 0.5
@@ -125,10 +146,12 @@ def process_meeting(text: str, include_behavioral_analysis: bool = True):
                 # Add to results
                 twin_data["behavioral_intelligence"] = behavioral_intel
                 twin_data["engagement_intelligence"] = engagement_intel
+                twin_data["ml_metrics"] = ml_metrics
                 
                 engagement_level = engagement_intel.get("engagement_level", 0.5)
             except Exception as e:
                 print(f"Warning: Could not perform behavioral analysis for {speaker}: {e}")
+                twin_data["ml_metrics"] = ml_metrics
         
         total_sentiment += engagement_level
         results[speaker] = twin_data

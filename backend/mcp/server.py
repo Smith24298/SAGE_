@@ -40,7 +40,7 @@ def build_mcp_server():
 
     @server.tool()
     def classify_message(message: str) -> dict[str, Any]:
-        """Classify message intent as navigation, casual_general, or meeting_hr."""
+        """Classify message intent as navigation, meeting_hr, or out_of_scope."""
         return classify_intent(message).to_dict()
 
     @server.tool()

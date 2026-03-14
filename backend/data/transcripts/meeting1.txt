@@ -1,6 +1,3 @@
-Meeting: Monthly Employee Engagement Check-In
-Participants: Rahul (Engineering), Anita (Engineering), John (Sales), Meera (HR), Arjun (Manager)
-
 Arjun: Good morning everyone. This is our monthly employee engagement meeting. I want everyone to feel comfortable sharing their thoughts about work, career growth, and any challenges you're facing.
 
 Rahul: Thanks Arjun. I'll be honest, the last two months have been quite stressful for me. The workload on the backend system project has increased significantly and it feels like we're constantly racing against deadlines.

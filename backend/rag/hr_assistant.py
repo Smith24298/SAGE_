@@ -242,7 +242,10 @@ def _detect_light_intent(question: str):
 
 def _light_intent_reply(intent: str) -> str:
     if intent == "empty":
-        return "Please share what you need help with. I can prepare meetings, summarize employee insights, or flag engagement risks."
+        return (
+            "Please share an HR/people question. I can help with meeting prep, employee insights, "
+            "engagement analysis, and burnout/attrition risk."
+        )
     if intent == "ack":
         return "Noted. Tell me the next action, like meeting prep, employee summary, or engagement review."
     if intent == "thanks":
@@ -252,7 +255,11 @@ def _light_intent_reply(intent: str) -> str:
     if intent == "exit":
         return "Sure. Reach out anytime you need HR support."
     if intent == "out_of_scope":
-        return "I am focused on HR and people topics. Ask me about meeting prep, employee insights, engagement, or burnout risk."
+        return (
+            "I am an HR/OB-focused assistant and cannot help with that topic. "
+            "Ask me about meeting prep, employee behavioral insights from digital twins, "
+            "engagement, burnout, or attrition risk."
+        )
     if intent == "clarify":
         return "Could you share a bit more detail so I can help accurately? Example: prepare me for a meeting with Rahul."
     return ""

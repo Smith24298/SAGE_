@@ -1,8 +1,15 @@
 from backend.database import employees
 from backend.twin_engine.twin_schema import EmployeeTwin
 from bson import ObjectId
+from datetime import datetime
 
-def update_digital_twin(name: str, insights: dict, ob_results: dict, original_text: str):
+def update_digital_twin(
+    name: str,
+    insights: dict,
+    ob_results: dict,
+    original_text: str,
+    ml_metrics: dict | None = None,
+):
     if employees is None:
         raise Exception("Database connection not available")
     
@@ -33,6 +40,19 @@ def update_digital_twin(name: str, insights: dict, ob_results: dict, original_te
     burnout_signal = str(insights.get("burnout_signal", "")).lower()
     if "high" in burnout_signal or "yes" in burnout_signal or "true" in burnout_signal:
         twin_data["burnout_risk"] = min(1.0, twin_data.get("burnout_risk", 0.0) + 0.2)
+
+    if ml_metrics:
+        metrics_payload = dict(ml_metrics)
+        metrics_payload["updated_at"] = datetime.utcnow()
+        twin_data["ml_metrics"] = metrics_payload
+
+        try:
+            current_risk = float(twin_data.get("burnout_risk", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            current_risk = 0.0
+        new_ml_risk = float(metrics_payload.get("burnout_score", 0.0) or 0.0)
+        # Smooth burnout updates so each transcript influences but does not fully overwrite history.
+        twin_data["burnout_risk"] = max(0.0, min(1.0, round(0.65 * current_risk + 0.35 * new_ml_risk, 4)))
     
     career_int = str(insights.get("career_interest", ""))
     if career_int and career_int not in twin_data.get("career_goals", []):

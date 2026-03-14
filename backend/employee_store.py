@@ -61,6 +61,10 @@ def _normalize_profile_doc(profile_doc: dict[str, Any]) -> dict[str, Any]:
     profile.setdefault("employmentType", "")
     profile.setdefault("location", "")
     profile.setdefault("employeeId", profile_id)
+    profile.setdefault("email", "")
+    profile.setdefault("email_id", "")
+    profile.setdefault("emailId", "")
+    profile.setdefault("workEmail", "")
     profile.setdefault("baseSalary", "")
     profile.setdefault("bonus", "")
     profile.setdefault("stockOptions", "")
@@ -296,6 +300,14 @@ def list_employees(limit: int = 200) -> list[dict[str, Any]]:
                 "employmentType": profile.get("employmentType", ""),
                 "location": profile.get("location", ""),
                 "employeeId": profile.get("employeeId", ""),
+                "email": (
+                    profile.get("email")
+                    or profile.get("email_id")
+                    or profile.get("emailId")
+                    or profile.get("workEmail")
+                    or profile.get("work_email")
+                    or None
+                ),
                 "baseSalary": profile.get("baseSalary", ""),
                 "bonus": profile.get("bonus", ""),
                 "stockOptions": profile.get("stockOptions", ""),
