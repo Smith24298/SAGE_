@@ -167,6 +167,56 @@ export async function getIntelligenceHistory(employeeName: string, limit: number
   }
 }
 
+export async function uploadTranscript(file: File): Promise<any> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/upload_transcript`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Upload API error: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Upload API error:', error);
+    throw error;
+  }
+}
+
+export async function getMeetingSummaries(limit: number = 5) {
+  try {
+    const url = `${API_BASE_URL}/api/meeting_summaries?limit=${limit}`;
+    const response = await fetch(url);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.summaries || [];
+  } catch (error) {
+    console.error('getMeetingSummaries error:', error);
+    return [];
+  }
+}
+
+export async function getMeetingSummary(id: string) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/meeting_summaries/${id}`);
+    if (!response.ok) {
+      console.warn(`Meeting summary not found: ${id}`);
+      return null;
+    }
+    const data = await response.json();
+    return data.summary;
+  } catch (error) {
+    console.error('getMeetingSummary error:', error);
+    return null;
+  }
+}
+
 export async function checkApiHealth(): Promise<boolean> {
   try {
     const url = `${API_BASE_URL}/health`;

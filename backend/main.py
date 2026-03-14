@@ -21,8 +21,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from backend.pipelines.meeting_pipeline import process_meeting
 from backend.rag.hr_assistant import hr_chat
-from backend.firestore_seed import SeedConfigError, seed_employees_to_firestore
-from backend.firebase_admin import get_firestore_client
 from backend.ob_engine.behavioral_analyzer import generate_employee_intelligence_report
 from backend.ob_engine.intelligence_storage import (
     store_intelligence_report,
@@ -33,51 +31,6 @@ from backend.ob_engine.intelligence_storage import (
 )
 
 app = FastAPI(title="AI HR Digital Twin Intelligence System")
-
-
-@app.on_event("startup")
-async def _auto_seed_firestore_on_startup():
-    """Optionally seed Firestore with employee data on startup.
-
-    Controlled by env vars:
-      - FIRESTORE_AUTO_SEED=true|false (default false)
-      - FIRESTORE_AUTO_SEED_COUNT (default 25)
-      - FIRESTORE_AUTO_SEED_JSON (default frontend/firestore-seed-employees.example.json)
-
-    Safe behavior: only seeds if `employee_profiles` is empty.
-    """
-
-    enabled = os.getenv("FIRESTORE_AUTO_SEED", "false").lower() in {"1", "true", "yes"}
-    if not enabled:
-        return
-
-    db = get_firestore_client()
-    if db is None:
-        print("[auto-seed] Firestore not configured; skipping")
-        return
-
-    try:
-        existing = db.collection("employee_profiles").limit(1).get()
-        if existing:
-            print("[auto-seed] employee_profiles not empty; skipping")
-            return
-
-        count = int(os.getenv("FIRESTORE_AUTO_SEED_COUNT", "25"))
-        seed_json = os.getenv(
-            "FIRESTORE_AUTO_SEED_JSON",
-            os.path.join("frontend", "firestore-seed-employees.example.json"),
-        )
-
-        result = seed_employees_to_firestore(
-            seed_json_path=seed_json,
-            count=count,
-            id_start=1,
-            merge=True,
-            dry_run=False,
-        )
-        print(f"[auto-seed] Seeded {result.employees_written} employees")
-    except Exception as e:
-        print(f"[auto-seed] Failed: {e}")
 
 frontend_origins = os.getenv("FRONTEND_ORIGINS", "")
 allowed_origins = [
@@ -155,14 +108,6 @@ class IntelligenceAnalysisRequest(BaseModel):
 
 class BehavioralSummaryRequest(BaseModel):
     employee_name: str
-
-
-class SeedEmployeesRequest(BaseModel):
-    count: int = 25
-    id_start: int = 1
-    merge: bool = True
-    dry_run: bool = False
-    seed_json_path: str = os.path.join("frontend", "firestore-seed-employees.example.json")
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
@@ -280,6 +225,31 @@ async def get_history(employee_name: str, limit: int = 10):
             "error_type": type(e).__name__
         }, 500
 
+@app.get("/api/meeting_summaries")
+async def get_meeting_summaries(limit: int = 10):
+    try:
+        cursor = db["meeting_summaries"].find({}).sort("created_at", -1).limit(limit)
+        summaries = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            summaries.append(doc)
+        return {"status": "success", "summaries": summaries}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}, 500
+
+@app.get("/api/meeting_summaries/{summary_id}")
+async def get_meeting_summary(summary_id: str):
+    try:
+        from bson import ObjectId
+        doc = db["meeting_summaries"].find_one({"_id": ObjectId(summary_id)})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Meeting summary not found")
+        
+        doc["_id"] = str(doc["_id"])
+        return {"status": "success", "summary": doc}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}, 500
+
 @app.get("/api/intelligence/summary/{employee_name}")
 async def get_summary(employee_name: str):
     """
@@ -303,44 +273,3 @@ async def get_summary(employee_name: str):
             "message": str(e),
             "error_type": type(e).__name__
         }, 500
-
-
-@app.post("/admin/seed/employees")
-async def seed_employees(
-    request: SeedEmployeesRequest,
-    x_seed_token: Optional[str] = Header(default=None),
-):
-    """Seed Firestore employee collections.
-
-    Protected by env var SEED_TOKEN. Provide the same token via header `x-seed-token`.
-    """
-
-    expected = os.getenv("SEED_TOKEN")
-    if not expected:
-        raise HTTPException(
-            status_code=503,
-            detail="Seeding is disabled (SEED_TOKEN is not set).",
-        )
-
-    if not x_seed_token or x_seed_token != expected:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    try:
-        result = seed_employees_to_firestore(
-            seed_json_path=request.seed_json_path,
-            count=request.count,
-            id_start=request.id_start,
-            merge=request.merge,
-            dry_run=request.dry_run,
-        )
-        return {
-            "status": "success",
-            "result": {
-                "employees_written": result.employees_written,
-                "profiles_written": result.profiles_written,
-                "photos_written": result.photos_written,
-                "insights_written": result.insights_written,
-            },
-        }
-    except SeedConfigError as e:
-        raise HTTPException(status_code=400, detail=str(e))
