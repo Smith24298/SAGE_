@@ -14,6 +14,7 @@ import {
 // Define which roles can see which navigation items
 const allNavItems = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["chro"] },
+  { path: "/departments", label: "Departments", icon: Users, roles: ["chro"] },
   { path: "/employees", label: "Employees", icon: Users, roles: ["hr_partner"] },
   {
     path: "/workforce-insights",

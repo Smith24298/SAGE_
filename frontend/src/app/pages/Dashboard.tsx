@@ -46,21 +46,15 @@ const departmentData = [
   { department: 'Finance', stress: 60, engagement: 78 },
 ];
 
-const engagementDistribution = [
-  { name: 'Highly Engaged', value: 42 },
-  { name: 'Engaged', value: 35 },
-  { name: 'Neutral', value: 18 },
-  { name: 'Disengaged', value: 5 },
+const attritionPrediction = [
+  { name: 'Low Risk', value: 65 },
+  { name: 'Medium Risk', value: 23 },
+  { name: 'High Risk', value: 12 },
 ];
 
 const COLORS = ['#e1634a', '#6b9080', '#a4b8c4', '#f4a261'];
 
-const topConcerns = [
-  { concern: 'Workload Balance', count: 23, trend: 'up' },
-  { concern: 'Career Growth', count: 18, trend: 'down' },
-  { concern: 'Remote Flexibility', count: 15, trend: 'up' },
-  { concern: 'Team Collaboration', count: 12, trend: 'neutral' },
-];
+
 
 const scrollVariants = {
   hidden: { opacity: 0, y: 30 },
@@ -133,20 +127,20 @@ export function Dashboard() {
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="Engagement Score"
-          value="74%"
-          change="+3.2%"
+          title="Total Employees"
+          value="342"
+          change="+8"
           trend="up"
-          icon={Heart}
+          icon={Users}
           color="text-primary"
           delay={0}
         />
         <MetricCard
-          title="Sentiment Score"
-          value="7.4/10"
-          change="-0.5"
-          trend="down"
-          icon={TrendingUp}
+          title="Company Engagement"
+          value="74%"
+          change="+3.2%"
+          trend="up"
+          icon={Heart}
           color="text-chart-2"
           delay={0.05}
         />
@@ -160,11 +154,11 @@ export function Dashboard() {
           delay={0.1}
         />
         <MetricCard
-          title="Active Employees"
-          value="342"
-          change="+8"
+          title="Workforce Growth"
+          value="18%"
+          change="+2%"
           trend="up"
-          icon={Users}
+          icon={TrendingUp}
           color="text-chart-4"
           delay={0.15}
         />
@@ -207,7 +201,7 @@ export function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* Engagement Distribution */}
+        {/* Attrition Prediction Distribution */}
         <motion.div
           variants={scrollVariants}
           initial="hidden"
@@ -216,11 +210,11 @@ export function Dashboard() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
-            <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Employee Engagement Distribution</h3>
+            <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Attrition Prediction</h3>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={engagementDistribution}
+                  data={attritionPrediction}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -229,7 +223,7 @@ export function Dashboard() {
                   dataKey="value"
                   label
                 >
-                  {engagementDistribution.map((entry, index) => (
+                  {attritionPrediction.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -240,10 +234,10 @@ export function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* Department Stress Levels */}
+        {/* Department Engagement Comparison */}
         <DeptStressBarChart />
 
-        {/* Top Concerns */}
+        {/* Department Sentiment Comparison */}
         <motion.div
           variants={scrollVariants}
           initial="hidden"
@@ -252,9 +246,9 @@ export function Dashboard() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300">
-            <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Top Employee Concerns</h3>
+            <h3 className="text-lg mb-4" style={{ fontWeight: 600 }}>Department Sentiment Comparison</h3>
             <div className="space-y-4">
-              {topConcerns.map((item, index) => (
+              {departmentData.map((item, index) => (
                 <motion.div
                   key={index}
                   className="flex items-center justify-between"
@@ -266,21 +260,24 @@ export function Dashboard() {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm">{item.concern}</span>
-                      {item.trend === 'up' && <TrendingUp className="w-4 h-4 text-destructive" />}
-                      {item.trend === 'down' && <TrendingDown className="w-4 h-4 text-chart-2" />}
+                      <span className="text-sm">{item.department}</span>
+                      {item.engagement < 70 ? (
+                        <TrendingDown className="w-4 h-4 text-destructive" />
+                      ) : (
+                        <TrendingUp className="w-4 h-4 text-chart-2" />
+                      )}
                     </div>
                     <div className="mt-1 h-2 bg-accent rounded-full overflow-hidden">
                       <motion.div
                         className="h-full bg-primary rounded-full"
                         initial={{ width: 0 }}
-                        whileInView={{ width: `${(item.count / 25) * 100}%` }}
+                        whileInView={{ width: `${item.engagement}%` }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.8, delay: index * 0.1 + 0.3, ease: 'easeOut' }}
                       />
                     </div>
                   </div>
-                  <span className="ml-4 text-sm text-muted-foreground">{item.count}</span>
+                  <span className="ml-4 text-sm text-muted-foreground">{item.engagement}%</span>
                 </motion.div>
               ))}
             </div>
@@ -302,13 +299,17 @@ export function Dashboard() {
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <h3 className="text-lg mb-2" style={{ fontWeight: 600 }}>AI-Generated Insights</h3>
-              <ul className="space-y-2 text-sm text-foreground/80">
-                <li>• Engineering department shows elevated stress levels (65%). Consider workload redistribution.</li>
-                <li>• Overall sentiment has improved by 5 points since December. Marketing initiatives are showing positive impact.</li>
-                <li>• 12% of employees are at attrition risk. Focus on career development conversations in Q2.</li>
-                <li>• Remote flexibility concerns are trending upward. Recommend policy review for hybrid work arrangements.</li>
-              </ul>
+              <h3 className="text-lg mb-2" style={{ fontWeight: 600 }}>Strategic Workforce Insights</h3>
+              <div className="space-y-4">
+                <div className="bg-background/60 p-4 rounded-lg">
+                  <span className="text-xs uppercase font-bold text-muted-foreground">AI Insight</span>
+                  <p className="mt-1 text-sm">Engineering engagement has declined by 12% this quarter.</p>
+                </div>
+                <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg">
+                  <span className="text-xs uppercase font-bold text-primary">Recommendation</span>
+                  <p className="mt-1 text-sm font-medium">Increase hiring and leadership support.</p>
+                </div>
+              </div>
             </div>
           </div>
         </Card>

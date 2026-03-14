@@ -7,4 +7,6 @@ export const routes = [
   "/meeting-intelligence",
   "/documents",
   "/ai-insights",
+  "/departments",
+  "/department/[id]",
 ] as const;
