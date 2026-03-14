@@ -78,7 +78,7 @@ const allNavItems = [
     path: "action:upload_transcript",
     label: "Upload Transcript",
     icon: Upload,
-    roles: ["chro", "hr_partner", "talent_ops", "engagement_manager"],
+    roles: ["chro", "hr_partner"],
   },
   {
     path: "/security",
