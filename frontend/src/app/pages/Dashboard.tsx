@@ -22,11 +22,16 @@ import {
   Heart,
   Zap,
   Calendar,
+  MapPin,
   MessageSquare,
 } from "lucide-react";
 import { motion, useInView } from "motion/react";
 import { useRef, useEffect, useState } from "react";
-import { getMeetingSummaries } from "@/lib/api";
+import {
+  getCalendarEvents,
+  getMeetingSummaries,
+  type CalendarEventRecord,
+} from "@/lib/api";
 
 /** Triggers Recharts' built-in bar rise animation when it scrolls into view */
 function useScrollAnimationKey() {
@@ -69,17 +74,70 @@ const scrollVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
+function parseDashboardEventDateTime(date: string, time: string): Date {
+  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
+  const parsed = new Date(`${date}T${normalizedTime}`);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  return new Date(date);
+}
+
+function formatDashboardEventTime(time: string): string {
+  const parsed = new Date(`1970-01-01T${time.length === 5 ? `${time}:00` : time}`);
+  if (Number.isNaN(parsed.getTime())) {
+    return time;
+  }
+  return parsed.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getDashboardEventStatus(event: CalendarEventRecord): "upcoming" | "past" {
+  return parseDashboardEventDateTime(event.date, event.time).getTime() >= Date.now()
+    ? "upcoming"
+    : "past";
+}
+
+function getDashboardEventTimestamp(event: CalendarEventRecord): number {
+  const eventTime = parseDashboardEventDateTime(event.date, event.time).getTime();
+  if (!Number.isNaN(eventTime)) {
+    return eventTime;
+  }
+
+  const createdAtTime = event.created_at ? new Date(event.created_at).getTime() : 0;
+  return Number.isNaN(createdAtTime) ? 0 : createdAtTime;
+}
+
 function MeetingInsights() {
   const [summaries, setSummaries] = useState<any[]>([]);
+  const [allEvents, setAllEvents] = useState<CalendarEventRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchSummaries() {
-      const data = await getMeetingSummaries(3);
-      setSummaries(data);
+    let isMounted = true;
+
+    async function fetchData() {
+      const [meetingData, eventData] = await Promise.all([
+        getMeetingSummaries(3),
+        getCalendarEvents(undefined, 200),
+      ]);
+
+      if (!isMounted) {
+        return;
+      }
+
+      setSummaries(Array.isArray(meetingData) ? meetingData : []);
+      setAllEvents(Array.isArray(eventData) ? eventData : []);
       setIsLoading(false);
     }
-    fetchSummaries();
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const staticMeetings = [
@@ -98,6 +156,12 @@ function MeetingInsights() {
   ];
 
   const displayMeetings = summaries.length > 0 ? summaries : staticMeetings;
+  const displayRecentEvents = [...allEvents]
+    .sort((a, b) => getDashboardEventTimestamp(b) - getDashboardEventTimestamp(a))
+    .slice(0, 5);
+  const displayOtherEvents = [...allEvents]
+    .sort((a, b) => getDashboardEventTimestamp(b) - getDashboardEventTimestamp(a))
+    .slice(5);
 
   return (
     <motion.div
@@ -110,49 +174,127 @@ function MeetingInsights() {
       <Card className="p-6 shadow-md hover:shadow-lg transition-shadow duration-300 h-full">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg" style={{ fontWeight: 600 }}>
-            Recent Meeting Activity
+            {displayRecentEvents.length > 0
+              ? "Recent 5 Events"
+              : "Recent Meeting Activity"}
           </h3>
           <Calendar className="w-5 h-5 text-primary" />
         </div>
         <div className="space-y-4">
-          {displayMeetings.map((meeting, index) => (
-            <div
-              key={index}
-              className="p-4 bg-accent rounded-lg border border-border/50"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <span className="text-sm font-semibold">{meeting.date}</span>
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    meeting.avgSentiment > 80
-                      ? "bg-green-100 text-green-700"
-                      : meeting.avgSentiment > 70
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-orange-100 text-orange-700"
-                  }`}
-                >
-                  {meeting.avgSentiment}% Sentiment
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                <span className="flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  {meeting.attendees} participants
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {meeting.topics.map((topic: string, i: number) => (
-                  <span
-                    key={i}
-                    className="text-[10px] px-2 py-0.5 bg-background border border-border rounded-md"
-                  >
-                    {topic}
-                  </span>
-                ))}
-              </div>
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p className="text-sm">Loading activity...</p>
             </div>
-          ))}
-          {displayMeetings.length === 0 && (
+          ) : displayRecentEvents.length > 0 ? (
+            <>
+              {displayRecentEvents.map((event, index) => (
+                <div
+                  key={`${event.id}-${index}`}
+                  className="p-4 bg-accent rounded-lg border border-border/50"
+                >
+                  <div className="flex justify-between items-start mb-2 gap-3">
+                    <span className="text-sm font-semibold">
+                      {new Date(event.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}{" "}
+                      at {formatDashboardEventTime(event.time)}
+                    </span>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        getDashboardEventStatus(event) === "upcoming"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {event.type}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium mb-3">{event.title}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {event.attendees} registered
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {event.location}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+              {displayOtherEvents.length > 0 && (
+                <div className="pt-3 border-t border-border/60">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                    Other Events ({displayOtherEvents.length})
+                  </p>
+                  <div className="space-y-2">
+                    {displayOtherEvents.slice(0, 3).map((event, index) => (
+                      <div
+                        key={`other-${event.id}-${index}`}
+                        className="flex items-center justify-between text-xs bg-background rounded-md px-3 py-2 border border-border/50"
+                      >
+                        <span className="font-medium truncate pr-3">{event.title}</span>
+                        <span className="text-muted-foreground whitespace-nowrap">
+                          {new Date(event.date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {displayOtherEvents.length > 3 && (
+                    <p className="text-[11px] text-muted-foreground mt-2">
+                      + {displayOtherEvents.length - 3} more in Events page
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            displayMeetings.map((meeting, index) => (
+              <div
+                key={index}
+                className="p-4 bg-accent rounded-lg border border-border/50"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-sm font-semibold">{meeting.date}</span>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${
+                      meeting.avgSentiment > 80
+                        ? "bg-green-100 text-green-700"
+                        : meeting.avgSentiment > 70
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-orange-100 text-orange-700"
+                    }`}
+                  >
+                    {meeting.avgSentiment}% Sentiment
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+                  <span className="flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    {meeting.attendees} participants
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {meeting.topics.map((topic: string, i: number) => (
+                    <span
+                      key={i}
+                      className="text-[10px] px-2 py-0.5 bg-background border border-border rounded-md"
+                    >
+                      {topic}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+          {!isLoading && displayRecentEvents.length === 0 && displayMeetings.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
               <p className="text-sm">No recent meeting data</p>

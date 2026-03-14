@@ -1,18 +1,10 @@
 /**
- * Firestore collections for employee data (split as requested):
- * 1. employee_profiles – profile, compensation, salary history, documents
- * 2. employee_photos – photo URL per employee
- * 3. employee_insights – behavior, personality, sentiment, engagement, meetings, risk indicators
+ * Mongo-backed employee data API client.
+ *
+ * NOTE: Kept file/module name for compatibility with existing imports.
  */
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  type Firestore,
-} from 'firebase/firestore';
-import { getFirebaseDb, isFirebaseConfigured } from './firebase';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export const COLLECTIONS = {
   PROFILES: 'employee_profiles',
@@ -127,57 +119,84 @@ export interface EmployeeFromFirestore {
 /** For list view: Employee shape + optional photoUrl */
 export type EmployeeListItem = EmployeeFromFirestore;
 
-function getDb(): Firestore | null {
-  if (!isFirebaseConfigured()) return null;
-  return getFirebaseDb();
-}
-
 function docIdFromRoute(id: string | number): string {
   return String(id);
+}
+
+async function apiGet<T>(path: string): Promise<T | null> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`API error ${response.status}: ${response.statusText}`);
+  }
+
+  return (await response.json()) as T;
 }
 
 /** Fetch a single employee profile by id (numeric or employeeId) */
 export async function getEmployeeProfile(
   id: string | number
 ): Promise<EmployeeProfileDoc | null> {
-  const db = getDb();
-  if (!db) return null;
   const docId = docIdFromRoute(id);
-  const snap = await getDoc(doc(db, COLLECTIONS.PROFILES, docId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as EmployeeProfileDoc;
+  const data = await apiGet<{ status: string; profile?: EmployeeProfileDoc }>(
+    `/api/employees/${encodeURIComponent(docId)}/profile`
+  );
+  if (!data?.profile) return null;
+  return data.profile;
 }
 
 /** Fetch all employee profiles (for list view) */
 export async function getEmployeeProfiles(): Promise<EmployeeProfileDoc[]> {
-  const db = getDb();
-  if (!db) return [];
-  const snap = await getDocs(collection(db, COLLECTIONS.PROFILES));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as EmployeeProfileDoc));
+  const data = await apiGet<{
+    status: string;
+    employees?: EmployeeFromFirestore[];
+  }>(`/api/employees?limit=200`);
+
+  if (!data?.employees) return [];
+
+  return data.employees.map((employee) => ({
+    id: String(employee.id),
+    name: employee.name,
+    role: employee.role,
+    department: employee.department,
+    manager: employee.manager,
+    dateOfJoining: employee.dateOfJoining,
+    employmentType: employee.employmentType,
+    location: employee.location,
+    employeeId: employee.employeeId,
+    baseSalary: employee.baseSalary,
+    bonus: employee.bonus,
+    stockOptions: employee.stockOptions,
+    totalCompensation: employee.totalCompensation,
+    lastRevision: employee.lastRevision,
+    nextReview: employee.nextReview,
+    avatarIndex: employee.avatarIndex,
+    salaryHistory: [],
+  }));
 }
 
 /** Fetch employee photo by id */
 export async function getEmployeePhoto(
   id: string | number
 ): Promise<EmployeePhotoDoc | null> {
-  const db = getDb();
-  if (!db) return null;
-  const docId = docIdFromRoute(id);
-  const snap = await getDoc(doc(db, COLLECTIONS.PHOTOS, docId));
-  if (!snap.exists()) return null;
-  return { ...snap.data(), employeeId: snap.id } as EmployeePhotoDoc;
+  // Photo storage is optional in Mongo path; return null when unavailable.
+  return null;
 }
 
 /** Fetch employee insights (behavior, sentiment, meetings, risks) by id */
 export async function getEmployeeInsights(
   id: string | number
 ): Promise<EmployeeInsightsDoc | null> {
-  const db = getDb();
-  if (!db) return null;
   const docId = docIdFromRoute(id);
-  const snap = await getDoc(doc(db, COLLECTIONS.INSIGHTS, docId));
-  if (!snap.exists()) return null;
-  return { employeeId: snap.id, ...snap.data() } as EmployeeInsightsDoc;
+  const data = await apiGet<{ status: string; insights?: EmployeeInsightsDoc }>(
+    `/api/employees/${encodeURIComponent(docId)}/insights`
+  );
+  if (!data?.insights) return null;
+  return data.insights;
 }
 
 /** Build full employee for list: profile + photo + insights (sentiment, risk) */
@@ -217,14 +236,12 @@ export async function getEmployeeForList(
 export async function listEmployeesFromFirestore(): Promise<
   EmployeeFromFirestore[]
 > {
-  const profiles = await getEmployeeProfiles();
-  if (profiles.length === 0) return [];
-  const db = getDb();
-  if (!db) return [];
-  const result: EmployeeFromFirestore[] = [];
-  for (const profile of profiles) {
-    result.push(await getEmployeeForList(profile));
-  }
+  const data = await apiGet<{
+    status: string;
+    employees?: EmployeeFromFirestore[];
+  }>(`/api/employees?limit=200`);
+
+  const result = data?.employees ?? [];
   result.sort((a, b) => a.id - b.id);
   return result;
 }

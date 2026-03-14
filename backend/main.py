@@ -23,6 +23,12 @@ from backend.database import db
 from backend.firestore_seed import seed_employees_to_firestore
 from backend.firebase_admin import get_firestore_client
 from backend.mcp.intent_router import classify_intent, route_user_message
+from backend.employee_store import (
+    get_employee_insights,
+    get_employee_profile,
+    list_employees,
+    upsert_employee,
+)
 from backend.pipelines.meeting_pipeline import process_meeting
 from backend.ob_engine.behavioral_analyzer import generate_employee_intelligence_report
 from backend.ob_engine.intelligence_storage import (
@@ -160,6 +166,11 @@ class IntelligenceAnalysisRequest(BaseModel):
 class BehavioralSummaryRequest(BaseModel):
     employee_name: str
 
+
+class EmployeeUpsertRequest(BaseModel):
+    profile: dict
+    insights: Optional[dict] = None
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
@@ -197,6 +208,87 @@ async def chat_intent(request: ChatRequest):
             "status": "error",
             "message": str(e),
             "error_type": type(e).__name__
+        }, 500
+
+
+@app.get("/api/employees")
+async def get_employees(limit: int = 200):
+    try:
+        data = list_employees(limit=limit)
+        return {
+            "status": "success",
+            "count": len(data),
+            "employees": data,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__,
+        }, 500
+
+
+@app.get("/api/employees/{employee_ref}/profile")
+async def get_employee_profile_api(employee_ref: str):
+    try:
+        profile = get_employee_profile(employee_ref)
+        if not profile:
+            return {
+                "status": "error",
+                "message": f"Employee profile not found for {employee_ref}",
+            }, 404
+        return {
+            "status": "success",
+            "profile": profile,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__,
+        }, 500
+
+
+@app.get("/api/employees/{employee_ref}/insights")
+async def get_employee_insights_api(employee_ref: str):
+    try:
+        insights = get_employee_insights(employee_ref)
+        if not insights:
+            return {
+                "status": "error",
+                "message": f"Employee insights not found for {employee_ref}",
+            }, 404
+        return {
+            "status": "success",
+            "insights": insights,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__,
+        }, 500
+
+
+@app.post("/api/employees/upsert")
+async def upsert_employee_api(request: EmployeeUpsertRequest):
+    try:
+        result = upsert_employee(request.profile, request.insights)
+        return {
+            "status": "success",
+            "employee": result,
+        }
+    except ValueError as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": "ValueError",
+        }, 400
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__,
         }, 500
 
 @app.post("/api/analyze/intelligence")

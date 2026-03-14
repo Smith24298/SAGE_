@@ -1,19 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Card } from '../components/ui/card';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Calendar as CalendarIcon, 
-  MapPin, 
-  Users, 
-  Clock, 
-  Plus, 
+import {
+  Calendar as CalendarIcon,
+  MapPin,
+  Users,
+  Plus,
   X,
   Mic,
   Smile,
   Presentation,
-  CheckCircle2
+  CheckCircle2,
 } from 'lucide-react';
+import {
+  createCalendarEvent,
+  getCalendarEvents,
+  getCurrentSessionId,
+  type CalendarEventRecord,
+} from '@/lib/api';
 
 type EventType = 'Pitch' | 'Townhall' | 'Fun';
 
@@ -29,58 +34,83 @@ interface Event {
   status: 'upcoming' | 'past';
 }
 
-const INITIAL_EVENTS: Event[] = [
-  {
-    id: '1',
-    title: 'Q1 Product Pitch Presentations',
-    date: '2026-03-25',
-    time: '2:00 PM',
-    location: 'Main Auditorium / Zoom',
-    attendees: 120,
-    type: 'Pitch',
-    description: 'Quarterly pitch presentations from the product pods showcasing upcoming features.',
-    status: 'upcoming'
-  },
-  {
-    id: '2',
-    title: 'Company Wide Townhall',
-    date: '2026-04-02',
-    time: '10:00 AM',
-    location: 'Engineering Hall',
-    attendees: 340,
-    type: 'Townhall',
-    description: 'Monthly all-hands meeting led by the CEO discussing company performance and roadmap.',
-    status: 'upcoming'
-  },
-  {
-    id: '3',
-    title: 'Team Building: Escape Room',
-    date: '2026-02-15',
-    time: '4:00 PM',
-    location: 'Downtown Escape Center',
-    attendees: 15,
-    type: 'Fun',
-    description: 'Fun Friday event for the marketing team to boost engagement and morale.',
-    status: 'past'
-  },
-  {
-    id: '4',
-    title: 'Annual Retreat Kickoff',
-    date: '2025-12-10',
-    time: '9:00 AM',
-    location: 'Mountain Resort',
-    attendees: 280,
-    type: 'Fun',
-    description: 'Kickoff presentation and team bonding for the end of year company retreat.',
-    status: 'past'
+function toEventType(value: string): EventType {
+  if (value === 'Pitch' || value === 'Townhall' || value === 'Fun') {
+    return value;
   }
-];
+  return 'Fun';
+}
+
+function parseEventDateTime(date: string, time: string): Date {
+  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
+  const parsed = new Date(`${date}T${normalizedTime}`);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  return new Date(date);
+}
+
+function computeStatus(date: string, time: string): 'upcoming' | 'past' {
+  const eventDateTime = parseEventDateTime(date, time);
+  return eventDateTime.getTime() >= Date.now() ? 'upcoming' : 'past';
+}
+
+function formatEventTime(time: string): string {
+  const parsed = new Date(`1970-01-01T${time.length === 5 ? `${time}:00` : time}`);
+  if (Number.isNaN(parsed.getTime())) {
+    return time;
+  }
+  return parsed.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function toFriendlyGoogleSyncError(errorText: string): string {
+  const text = String(errorText || '').trim();
+  const lower = text.toLowerCase();
+
+  if (!text) {
+    return 'Google Calendar sync failed due to an unknown error.';
+  }
+
+  if (lower.includes('calendar api has not been used') || lower.includes('accessnotconfigured')) {
+    return 'Google Calendar API is disabled for your Google Cloud project. Enable calendar-json.googleapis.com, wait a few minutes, then retry.';
+  }
+
+  if (lower.includes('service account file not found')) {
+    return 'Service account key file is missing or path is incorrect. Update backend env GOOGLE_SERVICE_ACCOUNT_FILE or FIREBASE_ADMIN_SDK_PATH.';
+  }
+
+  if (lower.includes('forbidden') || lower.includes('insufficient permissions')) {
+    return 'Service account does not have permission to create events. Share the target calendar with the service-account email and grant edit rights.';
+  }
+
+  return text;
+}
+
+function toEvent(record: CalendarEventRecord): Event {
+  return {
+    id: record.id,
+    title: record.title,
+    date: record.date,
+    time: record.time,
+    location: record.location,
+    attendees: record.attendees,
+    type: toEventType(record.type),
+    description: record.description,
+    status: computeStatus(record.date, record.time),
+  };
+}
 
 export function Events() {
-  const [events, setEvents] = useState<Event[]>(INITIAL_EVENTS);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [syncToGoogle, setSyncToGoogle] = useState(true);
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionId, setSessionId] = useState('');
+
   // Form State
   const [formData, setFormData] = useState({
     title: '',
@@ -88,52 +118,94 @@ export function Events() {
     time: '',
     location: '',
     type: 'Fun' as EventType,
-    description: ''
+    description: '',
   });
 
-  const handleCreateEvent = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const newEvent: Event = {
-      id: Date.now().toString(),
-      ...formData,
-      attendees: 0, // Starts with 0
-      status: 'upcoming' // Assuming new events are in the future
-    };
+  useEffect(() => {
+    let isMounted = true;
 
-    if (syncToGoogle) {
-      // Build the Google Calendar URL to redirect the user to
-      const startDateTime = new Date(`${formData.date}T${formData.time}`);
-      const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Add 1 hour
+    async function loadSessionEvents() {
+      const activeSessionId = getCurrentSessionId();
+      setSessionId(activeSessionId);
+      const apiEvents = await getCalendarEvents(activeSessionId, 200);
 
-      const formatGoogleDate = (date: Date) => {
-        return date.toISOString().replace(/-|:|\.\d\d\d/g, "");
-      };
+      if (!isMounted) {
+        return;
+      }
 
-      const googleCalUrl = new URL('https://calendar.google.com/calendar/render');
-      googleCalUrl.searchParams.append('action', 'TEMPLATE');
-      googleCalUrl.searchParams.append('text', formData.title);
-      googleCalUrl.searchParams.append('dates', `${formatGoogleDate(startDateTime)}/${formatGoogleDate(endDateTime)}`);
-      googleCalUrl.searchParams.append('details', formData.description);
-      googleCalUrl.searchParams.append('location', formData.location);
-
-      window.open(googleCalUrl.toString(), '_blank');
+      setEvents(apiEvents.map(toEvent));
+      setIsLoadingEvents(false);
     }
 
-    setEvents([newEvent, ...events]);
-    setIsModalOpen(false);
-    setFormData({
-      title: '',
-      date: '',
-      time: '',
-      location: '',
-      type: 'Fun',
-      description: ''
-    });
+    loadSessionEvents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const activeSessionId = sessionId || getCurrentSessionId();
+      if (!sessionId) {
+        setSessionId(activeSessionId);
+      }
+
+      const created = await createCalendarEvent({
+        title: formData.title.trim(),
+        date: formData.date,
+        time: formData.time,
+        location: formData.location.trim(),
+        description: formData.description.trim(),
+        type: formData.type,
+        attendees: 0,
+        session_id: activeSessionId,
+        sync_to_google: syncToGoogle,
+      });
+
+      const createdEvent = toEvent(created);
+      setEvents((prev) => [createdEvent, ...prev.filter((event) => event.id !== createdEvent.id)]);
+
+      setIsModalOpen(false);
+      setFormData({
+        title: '',
+        date: '',
+        time: '',
+        location: '',
+        type: 'Fun',
+        description: '',
+      });
+
+      if (syncToGoogle && created.event_link) {
+        window.open(created.event_link, '_blank', 'noopener,noreferrer');
+      } else if (syncToGoogle && created.google_sync_error) {
+        alert(`Event saved to dashboard and MongoDB, but Google Calendar sync failed: ${toFriendlyGoogleSyncError(created.google_sync_error)}`);
+      }
+    } catch (error) {
+      console.error('Failed to create event:', error);
+      alert('Failed to schedule event. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const upcomingEvents = events.filter(e => e.status === 'upcoming').sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const pastEvents = events.filter(e => e.status === 'past').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const upcomingEvents = events
+    .filter((event) => event.status === 'upcoming')
+    .sort(
+      (a, b) =>
+        parseEventDateTime(a.date, a.time).getTime() -
+        parseEventDateTime(b.date, b.time).getTime(),
+    );
+  const pastEvents = events
+    .filter((event) => event.status === 'past')
+    .sort(
+      (a, b) =>
+        parseEventDateTime(b.date, b.time).getTime() -
+        parseEventDateTime(a.date, a.time).getTime(),
+    );
 
   const getEventIcon = (type: EventType) => {
     switch(type) {
@@ -159,6 +231,9 @@ export function Events() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Employee Engagement Events</h1>
           <p className="text-muted-foreground mt-1">Manage and track company gatherings, townhalls, and activities</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Session: {sessionId || 'loading...'}
+          </p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
@@ -179,7 +254,9 @@ export function Events() {
           </div>
           
           <div className="space-y-4">
-            {upcomingEvents.length === 0 ? (
+            {isLoadingEvents ? (
+              <div className="text-muted-foreground text-center py-8 bg-card border border-border rounded-xl">Loading events...</div>
+            ) : upcomingEvents.length === 0 ? (
               <div className="text-muted-foreground text-center py-8 bg-card border border-border rounded-xl">No upcoming events scheduled.</div>
             ) : (
               upcomingEvents.map((event, i) => (
@@ -208,7 +285,7 @@ export function Events() {
                     <div className="grid grid-cols-2 gap-3 text-sm pt-4 border-t border-border/50">
                        <div className="flex items-center gap-2 text-muted-foreground">
                          <CalendarIcon className="w-4 h-4 shrink-0" />
-                         <span>{new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {event.time}</span>
+                         <span>{new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {formatEventTime(event.time)}</span>
                        </div>
                        <div className="flex items-center gap-2 text-muted-foreground justify-end">
                          <Users className="w-4 h-4 shrink-0" />
@@ -234,7 +311,9 @@ export function Events() {
           </div>
           
           <div className="space-y-4 opacity-80">
-            {pastEvents.length === 0 ? (
+            {isLoadingEvents ? (
+              <div className="text-muted-foreground text-center py-8 bg-card border border-border rounded-xl">Loading events...</div>
+            ) : pastEvents.length === 0 ? (
               <div className="text-muted-foreground text-center py-8 bg-card border border-border rounded-xl">No past events recorded.</div>
             ) : (
               pastEvents.map((event, i) => (
@@ -288,6 +367,7 @@ export function Events() {
                 <h3 className="text-xl font-bold text-foreground">Schedule New Event</h3>
                 <button 
                   onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
                   className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5 text-muted-foreground" />
@@ -382,15 +462,17 @@ export function Events() {
                     <button 
                       type="button"
                       onClick={() => setIsModalOpen(false)}
+                      disabled={isSubmitting}
                       className="px-4 py-2 text-foreground bg-accent hover:bg-accent/80 rounded-lg font-medium transition-colors disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit"
+                      disabled={isSubmitting}
                       className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg font-medium transition-colors shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-2"
                     >
-                      Schedule Event
+                      {isSubmitting ? 'Scheduling...' : 'Schedule Event'}
                     </button>
                   </div>
                 </div>

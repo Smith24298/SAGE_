@@ -259,3 +259,127 @@ export async function debugEmployeeSummary(employeeName: string): Promise<void> 
   }
   console.groupEnd();
 }
+
+export type DashboardEventStatus = 'upcoming' | 'past';
+
+export interface CalendarEventRecord {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  description: string;
+  attendee_email?: string | null;
+  attendees: number;
+  type: string;
+  session_id: string;
+  status: DashboardEventStatus;
+  event_link?: string | null;
+  google_sync_error?: string | null;
+  created_at?: string;
+}
+
+export interface CreateCalendarEventInput {
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  description: string;
+  attendee_email?: string | null;
+  attendees?: number;
+  type?: string;
+  session_id?: string;
+  sync_to_google?: boolean;
+  duration_minutes?: number;
+}
+
+function toCalendarEventRecord(raw: Record<string, any>): CalendarEventRecord {
+  const parsedAttendees = Number(raw?.attendees ?? 0);
+  const fallbackId = `${Date.now()}`;
+
+  return {
+    id: String(raw?.id ?? raw?._id ?? fallbackId),
+    title: String(raw?.title ?? ''),
+    date: String(raw?.date ?? ''),
+    time: String(raw?.time ?? ''),
+    location: String(raw?.location ?? ''),
+    description: String(raw?.description ?? ''),
+    attendee_email: raw?.attendee_email ?? null,
+    attendees: Number.isFinite(parsedAttendees) ? Math.max(0, parsedAttendees) : 0,
+    type: String(raw?.type ?? 'Fun'),
+    session_id: String(raw?.session_id ?? 'default'),
+    status: raw?.status === 'past' ? 'past' : 'upcoming',
+    event_link: raw?.event_link ?? null,
+    google_sync_error: raw?.google_sync_error ?? null,
+    created_at: raw?.created_at,
+  };
+}
+
+export function getCurrentSessionId(): string {
+  if (typeof window === 'undefined') {
+    return 'server-session';
+  }
+
+  const key = 'sage_dashboard_session_id';
+  const existing = window.sessionStorage.getItem(key);
+  if (existing && existing.trim()) {
+    return existing;
+  }
+
+  const created = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  window.sessionStorage.setItem(key, created);
+  return created;
+}
+
+export async function getCalendarEvents(
+  sessionId?: string,
+  limit: number = 100,
+): Promise<CalendarEventRecord[]> {
+  try {
+    const params = new URLSearchParams();
+    params.set('limit', String(Math.max(1, limit)));
+    if (sessionId && sessionId.trim()) {
+      params.set('session_id', sessionId.trim());
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/calendar/events?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Calendar events API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const items = Array.isArray(data?.events) ? data.events : [];
+    return items.map((item: Record<string, any>) => toCalendarEventRecord(item));
+  } catch (error) {
+    console.error('getCalendarEvents error:', error);
+    return [];
+  }
+}
+
+export async function createCalendarEvent(
+  payload: CreateCalendarEventInput,
+): Promise<CalendarEventRecord> {
+  const response = await fetch(`${API_BASE_URL}/api/calendar/event`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData?.detail || errorData?.message || `Calendar create API error: ${response.statusText}`,
+    );
+  }
+
+  const data = await response.json();
+  const rawEvent = data?.event ?? data;
+
+  return toCalendarEventRecord({
+    ...rawEvent,
+    event_link: rawEvent?.event_link ?? data?.event_link,
+    google_sync_error: rawEvent?.google_sync_error ?? data?.google_sync_error,
+  });
+}
