@@ -9,7 +9,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { 
-  User, 
   Download, 
   FileText, 
   TrendingUp, 
@@ -24,14 +23,27 @@ import {
 import { Button } from '../components/ui/button';
 import { motion, useInView, animate } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { EmployeeAvatar } from '../components/EmployeeAvatar';
+import { Employee, getEmployeeById } from '../data/employees';
+import { ReportModal } from '../components/ReportModal';
 
-const salaryHistory = [
-  { year: '2022', salary: 75000 },
-  { year: '2023', salary: 82000 },
-  { year: '2024', salary: 90000 },
-  { year: '2025', salary: 98000 },
-  { year: '2026', salary: 105000 },
-];
+interface EmployeeProfileProps {
+  employeeId?: number;
+}
+
+// Per-employee sentiment/salary data (keyed by employee id, defaults to id=1)
+const salaryHistoryByEmployee: Record<number, { year: string; salary: number }[]> = {
+  1: [{ year: '2022', salary: 75000 }, { year: '2023', salary: 82000 }, { year: '2024', salary: 90000 }, { year: '2025', salary: 98000 }, { year: '2026', salary: 105000 }],
+  2: [{ year: '2020', salary: 115000 }, { year: '2021', salary: 122000 }, { year: '2022', salary: 130000 }, { year: '2025', salary: 138000 }, { year: '2026', salary: 145000 }],
+  3: [{ year: '2021', salary: 78000 }, { year: '2022', salary: 84000 }, { year: '2023', salary: 90000 }, { year: '2024', salary: 95000 }, { year: '2026', salary: 98000 }],
+  4: [{ year: '2019', salary: 100000 }, { year: '2021', salary: 112000 }, { year: '2022', salary: 120000 }, { year: '2024', salary: 128000 }, { year: '2026', salary: 135000 }],
+  5: [{ year: '2021', salary: 88000 }, { year: '2022', salary: 95000 }, { year: '2023', salary: 100000 }, { year: '2024', salary: 106000 }, { year: '2026', salary: 110000 }],
+  6: [{ year: '2023', salary: 78000 }, { year: '2024', salary: 83000 }, { year: '2025', salary: 86000 }, { year: '2026', salary: 88000 }],
+  7: [{ year: '2020', salary: 72000 }, { year: '2021', salary: 80000 }, { year: '2022', salary: 86000 }, { year: '2024', salary: 91000 }, { year: '2026', salary: 95000 }],
+  8: [{ year: '2022', salary: 76000 }, { year: '2023', salary: 82000 }, { year: '2024', salary: 87000 }, { year: '2025', salary: 90000 }, { year: '2026', salary: 92000 }],
+};
+
+const defaultSalaryHistory = salaryHistoryByEmployee[1];
 
 const sentimentTrend = [
   { month: 'Oct', score: 78 },
@@ -85,20 +97,16 @@ function AnimatedCounter({ target, duration = 1.2 }: { target: number; duration?
 function CircularProgress({ score, fill, metric }: { score: number; fill: string; metric: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true });
-  const circumference = 2 * Math.PI * 40; // r=40
+  const circumference = 2 * Math.PI * 40;
   const targetDash = (score / 100) * circumference;
 
   return (
     <div ref={ref} className="text-center">
       <div className="relative w-24 h-24 mx-auto mb-2">
         <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 96 96">
-          {/* Track */}
           <circle cx="48" cy="48" r="40" stroke="#e9eae2" strokeWidth="8" fill="none" />
-          {/* Animated fill */}
           <motion.circle
-            cx="48"
-            cy="48"
-            r="40"
+            cx="48" cy="48" r="40"
             stroke={fill}
             strokeWidth="8"
             fill="none"
@@ -109,11 +117,7 @@ function CircularProgress({ score, fill, metric }: { score: number; fill: string
             transition={{ duration: 1.2, ease: 'easeOut' }}
           />
         </svg>
-        {/* Number counting in center */}
-        <div
-          className="absolute inset-0 flex items-center justify-center text-lg"
-          style={{ fontWeight: 600 }}
-        >
+        <div className="absolute inset-0 flex items-center justify-center text-lg" style={{ fontWeight: 600 }}>
           {isInView ? <AnimatedCounter target={score} /> : 0}%
         </div>
       </div>
@@ -122,19 +126,31 @@ function CircularProgress({ score, fill, metric }: { score: number; fill: string
   );
 }
 
-export function EmployeeProfile() {
+export function EmployeeProfile({ employeeId = 1 }: EmployeeProfileProps) {
+  const employee = getEmployeeById(employeeId) ?? getEmployeeById(1)!;
+  const salaryHistory = salaryHistoryByEmployee[employee.id] ?? defaultSalaryHistory;
+  const [showReport, setShowReport] = useState(false);
+
   return (
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl" style={{ fontWeight: 600 }}>Employee Profile</h1>
-          <p className="text-muted-foreground mt-1">Comprehensive intelligence and insights</p>
+          <h1 className="text-3xl" style={{ fontWeight: 600 }}>{employee.name}</h1>
+          <p className="text-muted-foreground mt-1">{employee.role} · {employee.department}</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90">
+        <Button
+          className="bg-primary hover:bg-primary/90"
+          onClick={() => setShowReport(true)}
+        >
           <Download className="w-4 h-4 mr-2" />
           Export Report
         </Button>
       </div>
+
+      {/* Report preview + download modal */}
+      {showReport && (
+        <ReportModal employee={employee} onClose={() => setShowReport(false)} />
+      )}
 
       {/* Employee Overview */}
       <motion.div
@@ -146,18 +162,21 @@ export function EmployeeProfile() {
       >
         <Card className="p-6 shadow-md">
           <div className="flex items-start gap-6">
-            <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="w-12 h-12 text-primary" />
-            </div>
+            {/* Themed Avatar */}
+            <EmployeeAvatar
+              name={employee.name}
+              avatarIndex={employee.avatarIndex}
+              size="xl"
+            />
             <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <InfoField label="Employee ID" value="EMP-2847" />
-              <InfoField label="Name" value="Sarah Johnson" />
-              <InfoField label="Department" value="Engineering" />
-              <InfoField label="Role" value="Senior Software Engineer" />
-              <InfoField label="Manager" value="Michael Chen" />
-              <InfoField label="Date of Joining" value="Jan 15, 2022" />
-              <InfoField label="Employment Type" value="Full-time" />
-              <InfoField label="Location" value="San Francisco, CA" />
+              <InfoField label="Employee ID" value={employee.employeeId} />
+              <InfoField label="Name" value={employee.name} />
+              <InfoField label="Department" value={employee.department} />
+              <InfoField label="Role" value={employee.role} />
+              <InfoField label="Manager" value={employee.manager} />
+              <InfoField label="Date of Joining" value={employee.dateOfJoining} />
+              <InfoField label="Employment Type" value={employee.employmentType} />
+              <InfoField label="Location" value={employee.location} />
             </div>
           </div>
         </Card>
@@ -177,12 +196,12 @@ export function EmployeeProfile() {
             <h2 className="text-xl" style={{ fontWeight: 600 }}>Compensation & Salary Structure</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-            <InfoField label="Base Salary" value="$105,000" highlight />
-            <InfoField label="Bonus" value="$15,000" />
-            <InfoField label="Stock Options" value="$25,000" />
-            <InfoField label="Total Compensation" value="$145,000" highlight />
-            <InfoField label="Last Revision" value="Jan 2026" />
-            <InfoField label="Next Review" value="Jul 2026" />
+            <InfoField label="Base Salary" value={employee.baseSalary} highlight />
+            <InfoField label="Bonus" value={employee.bonus} />
+            <InfoField label="Stock Options" value={employee.stockOptions} />
+            <InfoField label="Total Compensation" value={employee.totalCompensation} highlight />
+            <InfoField label="Last Revision" value={employee.lastRevision} />
+            <InfoField label="Next Review" value={employee.nextReview} />
           </div>
           <div className="mt-4">
             <h3 className="text-sm text-muted-foreground mb-4">Salary History</h3>
@@ -226,16 +245,16 @@ export function EmployeeProfile() {
             <h2 className="text-xl" style={{ fontWeight: 600 }}>Documents and Records</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <DocumentItem name="Offer Letter" />
-            <DocumentItem name="Employment Contract" />
-            <DocumentItem name="Performance Review - 2025" />
-            <DocumentItem name="Salary Slip - March 2026" />
+            <DocumentItem name="Offer Letter" employee={employee} />
+            <DocumentItem name="Employment Contract" employee={employee} />
+            <DocumentItem name={`Performance Review - ${new Date().getFullYear() - 1}`} employee={employee} />
+            <DocumentItem name={`Salary Slip - March ${new Date().getFullYear()}`} employee={employee} />
           </div>
         </Card>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Personality Profile */}
+        {/* Behavioral Intelligence */}
         <motion.div
           variants={scrollVariants}
           initial="hidden"
@@ -246,31 +265,11 @@ export function EmployeeProfile() {
           <Card className="p-6 shadow-md h-full">
             <h2 className="text-xl mb-4" style={{ fontWeight: 600 }}>Behavioral Intelligence</h2>
             <div className="space-y-4">
-              <BehaviorItem 
-                label="Communication Style" 
-                value="Direct and collaborative" 
-                color="bg-chart-1"
-              />
-              <BehaviorItem 
-                label="Personality Traits" 
-                value="Analytical, detail-oriented, team player" 
-                color="bg-chart-2"
-              />
-              <BehaviorItem 
-                label="Motivation Drivers" 
-                value="Technical challenges, career growth" 
-                color="bg-chart-3"
-              />
-              <BehaviorItem 
-                label="Feedback Preference" 
-                value="Regular, constructive, data-driven" 
-                color="bg-chart-4"
-              />
-              <BehaviorItem 
-                label="Collaboration Style" 
-                value="Proactive, mentorship-oriented" 
-                color="bg-chart-5"
-              />
+              <BehaviorItem label="Communication Style" value="Direct and collaborative" color="bg-chart-1" />
+              <BehaviorItem label="Personality Traits" value="Analytical, detail-oriented, team player" color="bg-chart-2" />
+              <BehaviorItem label="Motivation Drivers" value="Technical challenges, career growth" color="bg-chart-3" />
+              <BehaviorItem label="Feedback Preference" value="Regular, constructive, data-driven" color="bg-chart-4" />
+              <BehaviorItem label="Collaboration Style" value="Proactive, mentorship-oriented" color="bg-chart-5" />
             </div>
           </Card>
         </motion.div>
@@ -287,7 +286,7 @@ export function EmployeeProfile() {
             <h2 className="text-xl mb-4" style={{ fontWeight: 600 }}>Sentiment Analytics</h2>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="text-center p-4 bg-accent rounded-lg">
-                <div className="text-3xl" style={{ fontWeight: 600, color: '#e1634a' }}>70</div>
+                <div className="text-3xl" style={{ fontWeight: 600, color: '#e1634a' }}>{employee.sentiment}</div>
                 <div className="text-sm text-muted-foreground">Current Score</div>
               </div>
               <div className="text-center p-4 bg-accent rounded-lg">
@@ -321,7 +320,7 @@ export function EmployeeProfile() {
         </motion.div>
       </div>
 
-      {/* Engagement Metrics — Animated Circular Progress */}
+      {/* Engagement Metrics */}
       <motion.div
         variants={scrollVariants}
         initial="hidden"
@@ -336,12 +335,7 @@ export function EmployeeProfile() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {engagementMetrics.map((item, index) => (
-              <CircularProgress
-                key={index}
-                score={item.score}
-                fill={item.fill}
-                metric={item.metric}
-              />
+              <CircularProgress key={index} score={item.score} fill={item.fill} metric={item.metric} />
             ))}
           </div>
         </Card>
@@ -364,32 +358,32 @@ export function EmployeeProfile() {
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Top Topics</h3>
               <div className="flex flex-wrap gap-2">
-                {['Technical Architecture', 'Team Leadership', 'Code Reviews'].map((topic, i) => (
-                  <span key={i} className="px-3 py-1 bg-accent rounded-full text-sm">{topic}</span>
+                {['Technical Architecture', 'Team Leadership', 'Code Reviews'].map((t, i) => (
+                  <span key={i} className="px-3 py-1 bg-accent rounded-full text-sm">{t}</span>
                 ))}
               </div>
             </div>
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Concerns Raised</h3>
               <div className="flex flex-wrap gap-2">
-                {['Workload Balance', 'Project Deadlines'].map((concern, i) => (
-                  <span key={i} className="px-3 py-1 bg-destructive/10 text-destructive rounded-full text-sm">{concern}</span>
+                {['Workload Balance', 'Project Deadlines'].map((t, i) => (
+                  <span key={i} className="px-3 py-1 bg-destructive/10 text-destructive rounded-full text-sm">{t}</span>
                 ))}
               </div>
             </div>
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Career Interests</h3>
               <div className="flex flex-wrap gap-2">
-                {['Technical Lead Role', 'System Design', 'Mentoring'].map((interest, i) => (
-                  <span key={i} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">{interest}</span>
+                {['Technical Lead Role', 'System Design', 'Mentoring'].map((t, i) => (
+                  <span key={i} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">{t}</span>
                 ))}
               </div>
             </div>
             <div>
               <h3 className="text-sm text-muted-foreground mb-2">Recent Topics</h3>
               <div className="flex flex-wrap gap-2">
-                {['Q1 Goals', 'Team Expansion', 'New Tech Stack'].map((topic, i) => (
-                  <span key={i} className="px-3 py-1 bg-accent rounded-full text-sm">{topic}</span>
+                {['Q1 Goals', 'Team Expansion', 'New Tech Stack'].map((t, i) => (
+                  <span key={i} className="px-3 py-1 bg-accent rounded-full text-sm">{t}</span>
                 ))}
               </div>
             </div>
@@ -441,10 +435,10 @@ export function EmployeeProfile() {
             <h2 className="text-xl" style={{ fontWeight: 600 }}>Risk Indicators</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <RiskCard label="Burnout Risk" level="Medium" color="bg-orange-500" />
-            <RiskCard label="Attrition Risk" level="Low" color="bg-green-500" />
-            <RiskCard label="Engagement Decline" level="Medium" color="bg-yellow-500" />
-            <RiskCard label="Stress Signals" level="High" color="bg-red-500" />
+            <RiskCard label="Burnout Risk" level={employee.risk === 'High' ? 'High' : employee.risk === 'Medium' ? 'Medium' : 'Low'} color={employee.risk === 'High' ? 'bg-red-500' : employee.risk === 'Medium' ? 'bg-orange-500' : 'bg-green-500'} />
+            <RiskCard label="Attrition Risk" level={employee.risk} color={employee.risk === 'High' ? 'bg-red-500' : employee.risk === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'} />
+            <RiskCard label="Engagement Decline" level={employee.sentiment < 70 ? 'High' : employee.sentiment < 80 ? 'Medium' : 'Low'} color={employee.sentiment < 70 ? 'bg-red-500' : employee.sentiment < 80 ? 'bg-yellow-500' : 'bg-green-500'} />
+            <RiskCard label="Stress Signals" level={employee.sentiment < 72 ? 'High' : 'Medium'} color={employee.sentiment < 72 ? 'bg-red-500' : 'bg-orange-500'} />
           </div>
         </Card>
       </motion.div>
@@ -462,7 +456,7 @@ export function EmployeeProfile() {
           <ul className="space-y-2 text-sm">
             <li className="flex items-start gap-2">
               <TrendingDown className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
-              <span>Employee has shown declining sentiment in the last two meetings (from 80 to 70).</span>
+              <span>{employee.name} has shown declining sentiment in the last two meetings (from 80 to {employee.sentiment}).</span>
             </li>
             <li className="flex items-start gap-2">
               <TrendingUp className="w-4 h-4 text-chart-2 mt-0.5 flex-shrink-0" />
@@ -535,7 +529,93 @@ function InfoField({ label, value, highlight = false }: { label: string; value: 
   );
 }
 
-function DocumentItem({ name }: { name: string }) {
+function DocumentItem({ name, employee }: { name: string; employee?: Employee }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const W = doc.internal.pageSize.getWidth();
+      const H = doc.internal.pageSize.getHeight();
+      const PRI = '#e1634a';
+
+      const fill = (hex: string) => doc.setFillColor(hex);
+      const txt = (hex: string) => doc.setTextColor(hex);
+      const draw = (hex: string) => doc.setDrawColor(hex);
+      const white = () => doc.setTextColor(255, 255, 255);
+
+      // Header Banner
+      fill(PRI);
+      doc.rect(0, 0, W, 110, 'F');
+      
+      white();
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('SAGE - CONFIDENTIAL DOCUMENT', 40, 45);
+
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text(name, 40, 75);
+
+      // Body
+      const employeeName = employee?.name || 'Employee';
+      const docDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+      txt('#1a1a1a');
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Employee: ${employeeName}`, 40, 160);
+
+      if (employee) {
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        txt('#555555');
+        doc.text(`ID: ${employee.employeeId}  |  Department: ${employee.department}`, 40, 184);
+        doc.text(`Role: ${employee.role}  |  Location: ${employee.location}`, 40, 204);
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      txt('#333333');
+      
+      const contentText = `This document ("${name}") serves as a placeholder record for ${employeeName}. ` +
+        `This section will routinely embed officially verified employee files retrieved from ` +
+        `the secured organizational database cluster. Since another organizational division is currently ` +
+        `structuring the backend database APIs, this downloadable file validates the functional downloading integration.\n\n` +
+        `Verification Date: ${docDate}\n` +
+        `System Ref: SAGE_doc_${employee?.id || 'XX'}_${Date.now().toString().slice(-6)}`;
+        
+      const lines = doc.splitTextToSize(contentText, W - 80);
+      doc.text(lines, 40, 250);
+
+      // Footer
+      draw('#eeeeee');
+      doc.setLineWidth(1);
+      doc.line(40, H - 70, W - 40, H - 70);
+
+      txt(PRI);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SAGE', 40, H - 45);
+
+      txt('#aaaaaa');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Strategic Advisor for Growth and Engagement', 40, H - 30);
+      
+      const fileName = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${employeeName.toLowerCase().replace(/\s+/g, '_')}.pdf`;
+      doc.save(fileName);
+    } catch (err) {
+      console.error('PDF download error:', err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="flex items-center justify-between p-3 bg-accent rounded-lg hover:bg-accent/70 transition-colors">
       <div className="flex items-center gap-3">
@@ -543,9 +623,13 @@ function DocumentItem({ name }: { name: string }) {
         <span className="text-sm">{name}</span>
       </div>
       <div className="flex gap-2">
-        <Button variant="ghost" size="sm" className="h-8 text-xs">View</Button>
-        <Button variant="ghost" size="sm" className="h-8 text-xs">
-          <Download className="w-3 h-3" />
+        <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={handleDownload} disabled={isDownloading}>View</Button>
+        <Button variant="ghost" size="sm" className="h-8 pr-3 pl-3 text-xs" onClick={handleDownload} disabled={isDownloading}>
+          {isDownloading ? (
+            <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Download className="w-3 h-3" />
+          )}
         </Button>
       </div>
     </div>
