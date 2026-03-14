@@ -487,3 +487,25 @@ async def list_events(session_id: Optional[str] = None, limit: int = 100):
         "count": len(events),
         "events": events,
     }
+
+@router.post("/api/calendar/events/{event_id}/complete")
+async def complete_event(event_id: str):
+    events_collection = _events_collection()
+    if events_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available")
+
+    try:
+        from bson import ObjectId
+        obj_id = ObjectId(event_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid event ID format")
+
+    result = events_collection.update_one(
+        {"_id": obj_id},
+        {"$set": {"status": "past", "updated_at": datetime.datetime.utcnow()}}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    return {"status": "success", "message": "Event marked as completed"}

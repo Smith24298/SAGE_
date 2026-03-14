@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Shield,
+  History,
 } from "lucide-react";
 
 // Define which roles can see which navigation items
@@ -48,6 +49,7 @@ const allNavItems = [
     roles: ["talent_ops"] 
   },
   { path: "/events", label: "Events", icon: Calendar, roles: ["engagement_manager"] },
+  { path: "/past-events", label: "Past Events", icon: History, roles: ["engagement_manager"] },
   {
     path: "/engagement-analytics",
     label: "Engagement Analytics",
@@ -58,18 +60,24 @@ const allNavItems = [
     path: "/meeting-intelligence",
     label: "Meeting Intelligence",
     icon: Video,
-    roles: ["hr_partner", "engagement_manager", "talent_ops"],
+    roles: ["hr_partner"],
   },
   {
     path: "/documents",
     label: "Documents",
     icon: FileText,
-    roles: ["chro", "hr_partner", "talent_ops", "engagement_manager"],
+    roles: ["chro", "hr_partner"],
   },
   {
     path: "/ai-insights",
     label: "AI Insights",
     icon: Sparkles,
+    roles: ["chro", "hr_partner", "talent_ops", "engagement_manager"],
+  },
+  {
+    path: "action:upload_transcript",
+    label: "Upload Transcript",
+    icon: Upload,
     roles: ["chro", "hr_partner", "talent_ops", "engagement_manager"],
   },
   {
@@ -122,8 +130,49 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-20 bottom-0 w-64 bg-card border-r border-border p-4 flex flex-col overflow-hidden ml-4 rounded-tl-2xl">
-      <nav className="flex-1 space-y-1 overflow-y-auto">
+      <nav className="flex-1 space-y-1 overflow-y-auto pr-2">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept=".txt"
+          className="hidden"
+        />
+
         {visibleNavItems.map((item) => {
+          if (item.path === "action:upload_transcript") {
+            return (
+              <div key="upload-transcript" className="py-1 my-1 border-y border-border/50">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                    isUploading
+                      ? "bg-accent opacity-70 cursor-not-allowed"
+                      : uploadSuccess
+                        ? "bg-green-500/10 text-green-600 border border-green-500/20"
+                        : "text-foreground hover:bg-accent"
+                  }`}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  ) : uploadSuccess ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <Upload className="w-5 h-5 text-primary" />
+                  )}
+                  <span className="text-sm">
+                    {isUploading
+                      ? "Uploading..."
+                      : uploadSuccess
+                        ? "Success!"
+                        : "Upload Transcript"}
+                  </span>
+                </button>
+              </div>
+            );
+          }
+
           const Icon = item.icon;
           const isActive = currentPath === item.path;
 
@@ -143,43 +192,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Upload Transcript Section */}
-      <div className="mt-4 pt-4 border-t border-border">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          accept=".txt"
-          className="hidden"
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-            isUploading
-              ? "bg-accent opacity-70 cursor-not-allowed"
-              : uploadSuccess
-                ? "bg-green-500/10 text-green-600 border border-green-500/20"
-                : "text-foreground hover:bg-accent"
-          }`}
-        >
-          {isUploading ? (
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          ) : uploadSuccess ? (
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
-          ) : (
-            <Upload className="w-5 h-5 text-primary" />
-          )}
-          <span className="text-sm">
-            {isUploading
-              ? "Uploading..."
-              : uploadSuccess
-                ? "Success!"
-                : "Upload Transcript"}
-          </span>
-        </button>
-      </div>
     </aside>
   );
 }

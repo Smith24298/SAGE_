@@ -17,6 +17,7 @@ import {
   createCalendarEvent,
   getCalendarEvents,
   getCurrentSessionId,
+  completeCalendarEvent,
   type CalendarEventRecord,
   type EventEmailNotification,
 } from '@/lib/api';
@@ -128,7 +129,7 @@ function toEvent(record: CalendarEventRecord): Event {
     attendees: record.attendees,
     type: toEventType(record.type),
     description: record.description,
-    status: computeStatus(record.date, record.time),
+    status: record.status === 'past' ? 'past' : computeStatus(record.date, record.time),
   };
 }
 
@@ -248,13 +249,23 @@ export function Events() {
         parseEventDateTime(a.date, a.time).getTime() -
         parseEventDateTime(b.date, b.time).getTime(),
     );
-  const pastEvents = events
-    .filter((event) => event.status === 'past')
-    .sort(
-      (a, b) =>
-        parseEventDateTime(b.date, b.time).getTime() -
-        parseEventDateTime(a.date, a.time).getTime(),
-    );
+
+  const handleCompleteEvent = async (eventId: string) => {
+    try {
+      const success = await completeCalendarEvent(eventId);
+      if (success) {
+        setEvents((prev) => 
+          prev.map(event => event.id === eventId ? { ...event, status: 'past' } : event)
+        );
+      } else {
+        alert('Failed to mark event as complete.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('An error occurred while marking the event as complete.');
+    }
+  };
+
 
   const getEventIcon = (type: EventType) => {
     switch(type) {
@@ -331,7 +342,7 @@ export function Events() {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-3 text-sm pt-4 border-t border-border/50">
+                     <div className="grid grid-cols-2 gap-3 text-sm pt-4 border-t border-border/50">
                        <div className="flex items-center gap-2 text-muted-foreground">
                          <CalendarIcon className="w-4 h-4 shrink-0" />
                          <span>{new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {formatEventTime(event.time)}</span>
@@ -345,6 +356,16 @@ export function Events() {
                          <span>{event.location}</span>
                        </div>
                     </div>
+                    
+                    <div className="pt-3 border-t border-border/50 flex justify-end">
+                      <button 
+                        onClick={() => handleCompleteEvent(event.id)}
+                        className="flex items-center gap-2 bg-accent text-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-500 hover:text-white transition-colors border border-border"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Complete
+                      </button>
+                    </div>
                   </Card>
                 </motion.div>
               ))
@@ -352,53 +373,7 @@ export function Events() {
           </div>
         </section>
 
-        {/* Past Events Section */}
-        <section>
-          <div className="flex items-center gap-2 mb-6 border-b border-border pb-2">
-            <CheckCircle2 className="w-5 h-5 text-muted-foreground" />
-            <h2 className="text-2xl font-semibold text-foreground">Past Events</h2>
-          </div>
-          
-          <div className="space-y-4 opacity-80">
-            {isLoadingEvents ? (
-              <div className="text-muted-foreground text-center py-8 bg-card border border-border rounded-xl">Loading events...</div>
-            ) : pastEvents.length === 0 ? (
-              <div className="text-muted-foreground text-center py-8 bg-card border border-border rounded-xl">No past events recorded.</div>
-            ) : (
-              pastEvents.map((event, i) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                >
-                  <Card className="p-5 flex flex-col gap-4 shadow-sm border border-border/50 bg-background/50">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className={`p-3 rounded-xl flex-shrink-0 bg-muted text-muted-foreground`}>
-                        {getEventIcon(event.type)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between">
-                          <h3 className="text-lg font-semibold text-foreground">{event.title}</h3>
-                          <span className="text-xs px-2 py-1 rounded-full font-medium bg-muted text-muted-foreground">
-                            {event.type}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{event.description}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center gap-4 text-xs pt-3 text-muted-foreground">
-                       <span className="flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                       <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {event.location}</span>
-                       <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {event.attendees} Attended</span>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))
-            )}
-          </div>
-        </section>
+
 
       </div>
 
