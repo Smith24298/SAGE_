@@ -8,7 +8,10 @@ venv/
 env/
 .venv/
 ENV/
-./calendar-key.json.json
+
+# Service account credentials (do NOT commit)
+calendar-key.json
+*.firebase-adminsdk-*.json
 
 # Environment variables (VERY important)
 .env

@@ -2,12 +2,20 @@
  * API client for backend communication with proper error handling and validation
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+function normalizeApiBaseUrl(raw: string | undefined): string {
+  const trimmed = String(raw ?? '').trim();
+  const fallback = 'http://localhost:8000';
 
-// Validate API URL on initialization
-if (!API_BASE_URL) {
-  console.warn('API_BASE_URL is not set. Using default: http://localhost:8000');
+  if (!trimmed) {
+    return fallback;
+  }
+
+  // If user provided e.g. "localhost:8000" without scheme, browser fetch will fail.
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  return withScheme.replace(/\/+$/, '');
 }
+
+const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 interface ApiResponse<T> {
   status: string;
@@ -423,6 +431,147 @@ export async function createCalendarEvent(
     event_link: rawEvent?.event_link ?? data?.event_link,
     google_sync_error: rawEvent?.google_sync_error ?? data?.google_sync_error,
   });
+}
+
+export interface EngagementAnalyticsKpis {
+  overallEngagementPct: number;
+  highlyEngagedPct: number;
+  atRiskPct: number;
+}
+
+export interface EngagementAnalyticsPoint {
+  month: string;
+  score: number;
+}
+
+export interface EngagementAnalyticsFactor {
+  factor: string;
+  score: number;
+}
+
+export interface EngagementAnalyticsPayload {
+  kpis: EngagementAnalyticsKpis;
+  engagementTrend: EngagementAnalyticsPoint[];
+  engagementFactors: EngagementAnalyticsFactor[];
+  totalEmployees: number;
+}
+
+export async function getEngagementAnalytics(): Promise<EngagementAnalyticsPayload | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/engagement/analytics`);
+
+    if (!response.ok) {
+      throw new Error(`Engagement analytics API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const analytics = data?.analytics ?? data;
+    if (!analytics || typeof analytics !== 'object') {
+      return null;
+    }
+
+    const kpis = analytics?.kpis ?? {};
+    const toNumber = (v: unknown, fallback: number = 0) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    return {
+      kpis: {
+        overallEngagementPct: toNumber(kpis?.overallEngagementPct, 0),
+        highlyEngagedPct: toNumber(kpis?.highlyEngagedPct, 0),
+        atRiskPct: toNumber(kpis?.atRiskPct, 0),
+      },
+      engagementTrend: Array.isArray(analytics?.engagementTrend)
+        ? analytics.engagementTrend.map((p: Record<string, any>) => ({
+            month: String(p?.month ?? ''),
+            score: toNumber(p?.score, 0),
+          }))
+        : [],
+      engagementFactors: Array.isArray(analytics?.engagementFactors)
+        ? analytics.engagementFactors.map((p: Record<string, any>) => ({
+            factor: String(p?.factor ?? ''),
+            score: toNumber(p?.score, 0),
+          }))
+        : [],
+      totalEmployees: toNumber(analytics?.totalEmployees, 0),
+    };
+  } catch (error) {
+    console.error('getEngagementAnalytics error:', error);
+    return null;
+  }
+}
+
+export interface WorkforceDepartmentGrowth {
+  department: string;
+  headcount: number;
+  growth: number;
+}
+
+export interface WorkforceDiversitySlice {
+  category: string;
+  value: number;
+}
+
+export interface WorkforceInsightsMetrics {
+  totalEmployees: number;
+  newHiresQ1: number;
+  turnoverRatePct: number;
+  avgTenureYears: number;
+}
+
+export interface WorkforceInsightsPayload {
+  departmentGrowth: WorkforceDepartmentGrowth[];
+  diversityData: WorkforceDiversitySlice[];
+  metrics: WorkforceInsightsMetrics;
+}
+
+export async function getWorkforceInsights(windowDays: number = 90): Promise<WorkforceInsightsPayload | null> {
+  try {
+    const params = new URLSearchParams();
+    params.set('window_days', String(Math.max(1, windowDays)));
+
+    const response = await fetch(`${API_BASE_URL}/api/workforce/insights?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Workforce insights API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const insights = data?.insights ?? data;
+    if (!insights || typeof insights !== 'object') {
+      return null;
+    }
+
+    const toNumber = (v: unknown, fallback: number = 0) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    return {
+      departmentGrowth: Array.isArray(insights?.departmentGrowth)
+        ? insights.departmentGrowth.map((row: Record<string, any>) => ({
+            department: String(row?.department ?? 'Unknown'),
+            headcount: toNumber(row?.headcount, 0),
+            growth: toNumber(row?.growth, 0),
+          }))
+        : [],
+      diversityData: Array.isArray(insights?.diversityData)
+        ? insights.diversityData.map((row: Record<string, any>) => ({
+            category: String(row?.category ?? 'Unknown'),
+            value: toNumber(row?.value, 0),
+          }))
+        : [],
+      metrics: {
+        totalEmployees: toNumber(insights?.metrics?.totalEmployees, 0),
+        newHiresQ1: toNumber(insights?.metrics?.newHiresQ1, 0),
+        turnoverRatePct: toNumber(insights?.metrics?.turnoverRatePct, 0),
+        avgTenureYears: toNumber(insights?.metrics?.avgTenureYears, 0),
+      },
+    };
+  } catch (error) {
+    console.error('getWorkforceInsights error:', error);
+    return null;
+  }
 }
 
 export interface DashboardMetrics {

@@ -41,6 +41,9 @@ from backend.ob_engine.intelligence_storage import (
 )
 from backend.calendar_service import router as calendar_router
 from backend.dashboard_overview import build_dashboard_overview
+from backend.database import ensure_mongo_collections
+from backend.engagement_analytics import build_engagement_analytics
+from backend.workforce_insights import build_workforce_insights
 
 app = FastAPI(title="AI HR Digital Twin Intelligence System")
 
@@ -90,6 +93,23 @@ async def _auto_seed_firestore_on_startup():
         print(f"[auto-seed] Seeded {result.employees_written} employees")
     except Exception as e:
         print(f"[auto-seed] Failed: {e}")
+
+
+@app.on_event("startup")
+async def _ensure_mongo_collections_on_startup():
+    """Create required MongoDB collections/indexes if missing."""
+
+    try:
+        result = ensure_mongo_collections()
+        if not result.get("ok"):
+            print(f"[mongo-bootstrap] Skipped: {result.get('reason')}")
+            return
+        created = result.get("created") or []
+        if created:
+            print(f"[mongo-bootstrap] Created collections: {', '.join(created)}")
+    except Exception as e:
+        # Non-fatal
+        print(f"[mongo-bootstrap] Failed: {e}")
 
 frontend_origins = os.getenv("FRONTEND_ORIGINS", "")
 allowed_origins = [
@@ -458,4 +478,40 @@ async def get_summary(employee_name: str):
             "status": "error",
             "message": str(e),
             "error_type": type(e).__name__
+        }, 500
+
+
+@app.get("/api/engagement/analytics")
+async def get_engagement_analytics():
+    """Return real Mongo-backed engagement analytics for Engagement Manager."""
+
+    try:
+        analytics = build_engagement_analytics()
+        return {
+            "status": "success",
+            "analytics": analytics,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__,
+        }, 500
+
+
+@app.get("/api/workforce/insights")
+async def get_workforce_insights(window_days: int = 90):
+    """Return Mongo-backed workforce insights (headcount, growth, diversity, KPIs)."""
+
+    try:
+        payload = build_workforce_insights(window_days=window_days)
+        return {
+            "status": "success",
+            "insights": payload,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": type(e).__name__,
         }, 500

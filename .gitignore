@@ -13,7 +13,8 @@ env/
 
 # Service account credentials
 backend/firebase_admin_sdk.json
-backend/calendar-key.json.json
+backend/calendar-key.json
+backend/calendar-key.json.*
 
 # Frontend artifacts
 frontend/node_modules/

@@ -114,25 +114,6 @@ export function MeetingIntelligence() {
       overall_sentiment: "positive",
       transcript: "Static transcript for demo...",
     },
-    {
-      _id: "static-2",
-      date: "March 10, 2026",
-      attendees: 5,
-      avgSentiment: 82,
-      topics: ["Project Review", "Timeline"],
-      summary:
-        "A focused review of the current project's progress and an update on the upcoming timeline. No major blockers identified.",
-      key_insights: [
-        "Development is ahead of schedule by 2 days",
-        "Resource allocation is currently optimal",
-      ],
-      action_items: [
-        "Prepare the project demo for the stakeholders",
-        "Update the project management board with new milestones",
-      ],
-      overall_sentiment: "positive",
-      transcript: "Static transcript for demo...",
-    },
   ];
 
   const displayRecentMeetings =
